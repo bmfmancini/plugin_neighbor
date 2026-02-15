@@ -1039,8 +1039,17 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	
 	$user_id = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : 0;
 	error_log("Looking for saved map positions for user: $user_id, map: $rule_id");
-	$stored_map = db_fetch_assoc_prepared("SELECT * from plugin_neighbor__user_map where user_id=? AND rule_id=?",array($user_id,$rule_id));
-	if (sizeof($stored_map)) {
+	$stored_map = array();
+	$has_user_map_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__user_map'");
+	if ($has_user_map_table) {
+		$stored_map = db_fetch_assoc_prepared("SELECT * from plugin_neighbor__user_map where user_id=? AND rule_id=?",array($user_id,$rule_id));
+	}
+
+	if (!is_array($stored_map)) {
+		$stored_map = array();
+	}
+
+	if (count($stored_map)) {
 
 			foreach ($stored_map as $row) {
 				// error_log("Using saved coordinates:".print_r($row,true));		

@@ -64,6 +64,23 @@ function neighbor_setup_table () {
                 ENGINE=MEMORY
                 COMMENT='Running collector processes';");
 
+            // Table: plugin_neighbor__user_map
+            db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__user_map` (
+                                                `id` int(11) NOT NULL AUTO_INCREMENT,
+                                                `user_id` int(11) NOT NULL,
+                                                `rule_id` int(11) NOT NULL,
+                                                `item_id` varchar(64) NOT NULL,
+                                                `item_x` double DEFAULT NULL,
+                                                `item_y` double DEFAULT NULL,
+                                                `item_mass` double DEFAULT NULL,
+                                                `item_label` varchar(255) DEFAULT NULL,
+                                                `random_seed` int(11) DEFAULT '0',
+                                                PRIMARY KEY (`id`),
+                                                UNIQUE KEY `user_rule_item` (`user_id`,`rule_id`,`item_id`),
+                                                KEY `rule_id` (`rule_id`)
+                                          ) DEFAULT CHARSET=utf8mb4
+            ");
+
     // Table: plugin_neighbor__ipv4_cache
     db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__ipv4_cache` (
                 `id` int(11) NOT NULL AUTO_INCREMENT,
