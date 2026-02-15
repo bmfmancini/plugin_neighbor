@@ -669,9 +669,14 @@ function discoverIpNeighbors($host) {
 						
 						// cacti_tag_log("NEIGHBOR POLLER: vrf=$vrf, ipAddress1= $ipAddress1, ipAddress2= $ipAddress2");
 						
-						if ($record1['ip_address_num'] == $record2['ip_address_num']) { continue; }
+						// Calculate numeric values on-the-fly since they're not stored
+						$ip1_num = ip2long($record1['ip_address']);
+						$ip2_num = ip2long($record2['ip_address']);
+						$subnet1_num = ip2long($record1['ip_netmask']);
+						
+						if ($ip1_num == $ip2_num) { continue; }
 						if (($record1['host_id'] == $record2['host_id']) && ($record1['snmp_id']) == $record2['snmp_id']) { continue; }		// Catches HSRP & VRRP sillyness
-						if ($record1['ip_subnet_num'] < $minCorrelation) { 	continue; }		// Catches addresses not meeting min correlation (e.g. /30)
+						if ($subnet1_num < $minCorrelation) { 	continue; }		// Catches addresses not meeting min correlation (e.g. /30)
 						$totalSearched++;
 						// cacti_tag_log("NEIGHBOR POLLER: vrf=$vrf, ipAddress1= $ipAddress1, ipAddress2= $ipAddress2 - Past correlation check. totalSearched: $totalSearched, neighsFound: $neighsFound");
 						
