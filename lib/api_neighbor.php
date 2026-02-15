@@ -511,7 +511,7 @@ function neighbor_display_matching_hosts($rule, $rule_type, $url) {
 
 	/* now we build up a new query for counting the rows */
 	$rows_query = $sql_query . $sql_where . $sql_filter;
-	$total_rows = sizeof(db_fetch_assoc($rows_query, false));
+	$total_rows = count((array) db_fetch_assoc($rows_query, false));
 
 	$sortby = get_request_var('sort_column');
 	if ($sortby=='hostname') {
@@ -912,7 +912,7 @@ function neighbor_display_new_graphs($rule, $url) {
 		$start_rec = $rows*(get_request_var('page')-1);
 		$all_neighbor_objects = db_fetch_assoc($sql_query);
 		$all_neighbor_objects = dedup_by_hash($all_neighbor_objects);
-		$total_rows = sizeof($all_neighbor_objects);
+		$total_rows = count((array) $all_neighbor_objects);
 		$neighbor_objects = array_slice($all_neighbor_objects,$start_rec,$rows);
 		//error_log(print_r($neighbor_objects,1));
 		
@@ -985,7 +985,8 @@ function neighbor_rule_to_json($rule_id) {
 	
 	if ($ajax) 	{
 		header('Content-Type: application/json');
-		print $format == 'jsonp' ? $_GET['callback'] . '(' . $json . ')' : $json;
+		$callback = get_request_var('callback', 'Callback');
+		print $format == 'jsonp' ? $callback . '(' . $json . ')' : $json;
 	}
 	else {
 		return($json);
@@ -1154,7 +1155,7 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	// We need to store the edges into a DB so we can integrate the poller_output values, RRD files etc. etc.
 	update_edges_db($rule_id,$edges);
 
-	$query_callback = isset($_GET['callback']) ? $_GET['callback'] : "Callback";
+	$query_callback = get_request_var('callback', 'Callback');
 	$data['nodes'] = $projected;
 	$data['edges'] = $edges;
 	
@@ -1434,6 +1435,7 @@ function dedup_by_hash($neighbor_objects) {
 	
 	$seen = array();
 	$dedup = array();
+	$neighbor_objects = is_array($neighbor_objects) ? $neighbor_objects : array();
 	
 	error_log("Objects is:".sizeof($neighbor_objects)." records.");
 	foreach ($neighbor_objects as $rec) {

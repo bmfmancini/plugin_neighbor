@@ -470,8 +470,7 @@ function neighbor_device_action_execute($action) {
                         }
                 }else{
                         for ($i = 0; ($i < count($selected_items)); $i++) {
-                                reset($fields_host_edit);
-                                while (list($field_name, $field_array) = each($fields_host_edit)) {
+						foreach ($fields_host_edit as $field_name => $field_array) {
                                         if (isset_request_var("t_$field_name")) {
                                               db_execute_prepared("UPDATE host SET $field_name = ? WHERE id = ?", array(get_nfilter_request_var($field_name), $selected_items[$i]));
                                         }

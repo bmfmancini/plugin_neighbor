@@ -365,8 +365,8 @@ function get_neighbor_rules(&$total_rows = 0, $rowStart = 1, $rowEnd = 25, $filt
     $conditions = array();
     $params = array();
 
-    if ($orderField && ($orderDir != ''))   { $sqlOrder = "order by $orderField $orderDir"; }
-    if ($filterVal != '')										{ array_push($conditions,"`name` like ?");$params = array_push($params,$filterVal); }
+	if ($orderField && ($orderDir != ''))   { $sqlOrder = "order by $orderField $orderDir"; }
+	if ($filterVal != '')										{ array_push($conditions,"`name` like ?"); array_push($params, $filterVal); }
 		
     $sqlWhere = count($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
     $result = db_fetch_assoc_prepared("select * from plugin_neighbor__rules rules $sqlWhere $sqlOrder $sqlLimit", $params);

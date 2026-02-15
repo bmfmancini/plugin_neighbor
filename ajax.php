@@ -62,7 +62,7 @@ switch (get_request_var('action')) {
 function ajax_map_list($format = 'jsonp',$ajax = true) {
 	
 	$format = $format ? $format  : (isset_request_var('format') ? get_request_var('format') : '');
-	$query_callback = isset($_GET['callback']) ? $_GET['callback'] : "Callback";
+	$query_callback = get_request_var('callback', 'Callback');
 	$results = db_fetch_assoc('SELECT * FROM plugin_neighbor__rules order by name');
 	$json = json_encode($results);
 	$jsonp = sprintf("%s({\"Response\":[%s]})", $query_callback,json_encode($results,JSON_PRETTY_PRINT));
@@ -80,7 +80,7 @@ function ajax_map_list($format = 'jsonp',$ajax = true) {
 function ajax_map_reset_options($format = 'jsonp',$ajax = true) {
 	
 	$format = $format ? $format  : (isset_request_var('format') ? get_request_var('format') : '');
-	$query_callback = isset($_GET['callback']) ? $_GET['callback'] : "Callback";
+	$query_callback = get_request_var('callback', 'Callback');
 	
 	$user_id = isset_request_var('user_id') ? get_request_var('user_id') : false;
 	$rule_id = isset_request_var('rule_id') ? get_request_var('rule_id') : false;
@@ -110,7 +110,7 @@ function ajax_map_reset_options($format = 'jsonp',$ajax = true) {
 function ajax_map_save_options($format = 'jsonp',$ajax = true) {
 	
 	$format = $format ? $format  : (isset_request_var('format') ? get_request_var('format') : '');
-	$query_callback = isset($_GET['callback']) ? $_GET['callback'] : "Callback";
+	$query_callback = get_request_var('callback', 'Callback');
 	
 	$user_id = isset_request_var('user_id') ? get_request_var('user_id') : false;
 	$rule_id = isset_request_var('rule_id') ? get_request_var('rule_id') : false;
@@ -177,7 +177,7 @@ function ajax_map_save_options($format = 'jsonp',$ajax = true) {
 function ajax_neighbors_fetch($table = '', $format = 'jsonp',$ajax = true) {
 	
 	$format = $format ? $format  : (isset_request_var('format') ? get_request_var('format') : '');
-	$query_callback = isset($_GET['callback']) ? $_GET['callback'] : "Callback";
+	$query_callback = get_request_var('callback', 'Callback');
 	$results = db_fetch_assoc('SELECT * FROM plugin_neighbor__'.$table);
 	$json = json_encode($results);
 	$jsonp = sprintf("%s({\"Response\":[%s]})", $query_callback,json_encode($results,JSON_PRETTY_PRINT));

@@ -851,8 +851,8 @@ function get_neighbor_vrf_rules(&$total_rows = 0, $rowStart = 1, $rowEnd = 25, $
     $conditions = array();
     $params = array();
 
-    if ($orderField && ($orderDir != ''))   { $sqlOrder = "order by $orderField $orderDir"; }
-    if ($filterVal != '')										{ array_push($conditions,"`name` like ?");$params = array_push($params,$filterVal); }
+	if ($orderField && ($orderDir != ''))   { $sqlOrder = "order by $orderField $orderDir"; }
+	if ($filterVal != '')										{ array_push($conditions,"`name` like ?"); array_push($params, $filterVal); }
 		
     $sqlWhere = count($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
     $result = db_fetch_assoc_prepared("select * from plugin_neighbor__vrf_rules rules $sqlWhere $sqlOrder $sqlLimit", $params);
@@ -1683,7 +1683,7 @@ function neighbor_display_vrf_object_matches($rule, $url) {
 		print "neighbor_display_vrf_object_matches() sql_query: $sql_query";
 		$start_rec = $rows*(get_request_var('page')-1);
 		$all_neighbor_objects = db_fetch_assoc($sql_query);
-		$total_rows = sizeof($all_neighbor_objects);
+		$total_rows = count((array) $all_neighbor_objects);
 		$neighbor_objects = array_slice($all_neighbor_objects,$start_rec,$rows);
 		//error_log(print_r($neighbor_objects,1));
 		//error_log("Query: $sql_query");
