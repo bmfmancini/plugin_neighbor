@@ -4,9 +4,6 @@ function neighbor_setup_table () {
 
 	global $config, $database_default;
 	include_once($config['library_path'] . '/database.php');
-	add_fields_host();
-
-	return;
 
 	// CDP and LLDP Neighbors table
 	// Table: plugin_neighbor__xdp
@@ -127,7 +124,7 @@ function neighbor_setup_table () {
 
     	//Table: plugin_neighbor__graph_rules
     
-	db_execute("CREATE TABLE `plugin_neighbor__graph_rules` (
+      db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__graph_rules` (
 		`id` mediumint(8) UNSIGNED NOT NULL,
 		`name` varchar(255) NOT NULL DEFAULT '',
 		`snmp_query_id` smallint(3) UNSIGNED NOT NULL DEFAULT '0',
@@ -138,7 +135,7 @@ function neighbor_setup_table () {
     
 	//Table: plugin_neighbor__graph_rules
 
-	db_execute("CREATE TABLE `plugin_neighbor__graph_rule_items` (
+      db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__graph_rule_items` (
 		`id` mediumint(8) UNSIGNED NOT NULL,
 		`rule_id` mediumint(8) UNSIGNED NOT NULL DEFAULT '0',
 		`sequence` smallint(3) UNSIGNED NOT NULL DEFAULT '0',
@@ -151,7 +148,7 @@ function neighbor_setup_table () {
     
 	// Table: plugin_neighbor__match_rule_items
 	
-	db_execute("CREATE TABLE `plugin_neighbor__match_rule_items` (
+      db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__match_rule_items` (
 		`id` mediumint(8) UNSIGNED NOT NULL,
 		`rule_id` mediumint(8) UNSIGNED NOT NULL DEFAULT '0',
 		`rule_type` smallint(3) UNSIGNED NOT NULL DEFAULT '0',
@@ -163,19 +160,21 @@ function neighbor_setup_table () {
 	      )  COMMENT='Automation Match Rule Items';
 	");
 	
-	// Table: plugin_neighbor__rules
+      // Table: plugin_neighbor__rules
 	
-	db_execute("CREATE TABLE `plugin_neighbor__rules` (
-		`id` mediumint(8) UNSIGNED NOT NULL,
-		`name` varchar(255) NOT NULL DEFAULT '',
-		`description` varchar(64) DEFAULT NULL,
-		`enabled` char(2) DEFAULT ''
-	      )  COMMENT='Automation Graph Rules';
-	");
+      db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__rules` (
+            `id` mediumint(8) UNSIGNED NOT NULL,
+            `name` varchar(255) NOT NULL DEFAULT '',
+            `description` varchar(64) DEFAULT NULL,
+            `neighbor_type` varchar(32) NOT NULL DEFAULT 'interface',
+            `neighbor_options` varchar(255) DEFAULT '',
+            `enabled` char(2) DEFAULT ''
+            )  COMMENT='Automation Graph Rules';
+      ");
 	
 	// Table: plugin_neighbor__tree_rules
 	
-	db_execute("CREATE TABLE `plugin_neighbor__tree_rules` (
+      db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__tree_rules` (
 		`id` mediumint(8) UNSIGNED NOT NULL,
 		`name` varchar(255) NOT NULL DEFAULT '',
 		`tree_id` smallint(3) UNSIGNED NOT NULL DEFAULT '0',
@@ -188,7 +187,7 @@ function neighbor_setup_table () {
 	
 	// Table: plugin_neighbor__tree_rule_items
 	
-	db_execute("CREATE TABLE `plugin_neighbor__tree_rule_items` (
+      db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__tree_rule_items` (
 		`id` mediumint(8) UNSIGNED NOT NULL,
 		`rule_id` mediumint(8) UNSIGNED NOT NULL DEFAULT '0',
 		`sequence` smallint(3) UNSIGNED NOT NULL DEFAULT '0',
@@ -200,22 +199,10 @@ function neighbor_setup_table () {
 	      )  COMMENT='Automation Tree Rule Items';
 	");
 	
-	$fields = array(
-                        'neighbor_discover_enable',
-                        'neighbor_discover_cdp',
-                        'neighbor_discover_lldp',
-                        'neighbor_discover_ip',
-                        'neighbor_discover_switching',
-                        'neighbor_discover_ifalias',
-                        'neighbor_discover_ospf',
-                        'neighbor_discover_bgp',
-                        'neighbor_discover_isis',
-       );
-	$last = 'disabled';
-	foreach ($fields as $field) {
-		api_plugin_db_add_column ('neighbor', 'host', array('name' => $field, 'type' => 'char(3)', 'NULL' => false, 'default' => 'on', 'after' => $last));
-		$last = $field;
-	}
+      api_plugin_db_add_column('neighbor', 'plugin_neighbor__rules', array('name' => 'neighbor_type', 'type' => 'varchar(32)', 'NULL' => false, 'default' => 'interface', 'after' => 'description'));
+      api_plugin_db_add_column('neighbor', 'plugin_neighbor__rules', array('name' => 'neighbor_options', 'type' => 'varchar(255)', 'NULL' => true, 'default' => '', 'after' => 'neighbor_type'));
+
+      add_fields_host();
 
 }
 
