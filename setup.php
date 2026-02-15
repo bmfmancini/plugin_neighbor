@@ -57,16 +57,26 @@ function plugin_neighbor_install () {
 
 function plugin_neighbor_uninstall () {
 	
-	// Do any extra Uninstall stuff here
-	/*
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__cdp`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__lldp`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__ip`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__bgp`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__ospf`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__log`');
+	// Drop all plugin tables
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__xdp`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__ipv4`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__ipv4_cache`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__processes`');
-	*/
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_processes`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__log`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__edge`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__poller_output`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__poller_delta`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__user_map`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__rules`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__graph_rules`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__graph_rule_items`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__match_rule_items`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__tree_rules`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__tree_rule_items`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__vrf_rules`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__vrf_rule_items`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__vrf_match_rule_items`');
 }
 
 function plugin_neighbor_check_config () {
