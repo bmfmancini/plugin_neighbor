@@ -329,6 +329,9 @@ function neighbor_setup_table () {
        * Older Cacti installs can have host table row-size limits; avoid hard-failing
        * plugin install/upgrade by not auto-altering host with many additional columns.
        */
+      
+      // Add neighbor discovery columns to host table
+      add_fields_host();
 
 }
 
