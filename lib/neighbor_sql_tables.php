@@ -55,8 +55,8 @@ function neighbor_setup_table () {
         ) AUTO_INCREMENT=45446 DEFAULT CHARSET=utf8mb4 
         ");
 
-    // Table: plugin_neighbor__processes
-    db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor_processes` (
+            // Table: plugin_neighbor__processes
+            db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__processes` (
                 `pid` int(10) unsigned NOT NULL,
                 `taskid` int(10) unsigned NOT NULL,
                                                 `host_id` int(10) unsigned NOT NULL DEFAULT '0',
@@ -64,6 +64,26 @@ function neighbor_setup_table () {
                 PRIMARY KEY  (`pid`))
                 ENGINE=MEMORY
                 COMMENT='Running collector processes';");
+
+            // Legacy table alias for older plugin revisions
+            db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor_processes` (
+                                                `pid` int(10) unsigned NOT NULL,
+                                                `taskid` int(10) unsigned NOT NULL,
+                                                `host_id` int(10) unsigned NOT NULL DEFAULT '0',
+                                                `started` timestamp NOT NULL default CURRENT_TIMESTAMP,
+                                                PRIMARY KEY  (`pid`))
+                                                ENGINE=MEMORY
+                                                COMMENT='Running collector processes (legacy)';");
+
+            // Table: plugin_neighbor__log
+            db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__log` (
+                                                `id` int(11) NOT NULL AUTO_INCREMENT,
+                                                `logtime` datetime NOT NULL,
+                                                `message` mediumtext,
+                                                PRIMARY KEY (`id`),
+                                                KEY `logtime` (`logtime`)
+                                          ) DEFAULT CHARSET=utf8mb4
+            ");
 
             // Table: plugin_neighbor__edge
             db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor__edge` (
