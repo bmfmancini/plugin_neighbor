@@ -63,7 +63,7 @@ function ajax_map_list($format = 'jsonp',$ajax = true) {
 	
 	$format = $format ? $format  : (isset_request_var('format') ? get_request_var('format') : '');
 	$query_callback = isset($_GET['callback']) ? $_GET['callback'] : "Callback";
-	$results = db_fetch_assoc('SELECT * FROM plugin_neighbor__rules order by neighbor_type, name');
+	$results = db_fetch_assoc('SELECT * FROM plugin_neighbor__rules order by name');
 	$json = json_encode($results);
 	$jsonp = sprintf("%s({\"Response\":[%s]})", $query_callback,json_encode($results,JSON_PRETTY_PRINT));
 	

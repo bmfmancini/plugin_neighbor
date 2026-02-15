@@ -134,7 +134,15 @@ function getXdpNeighborStats(&$total_rows = 0) {
 // Emulates perl DBIs fetchall_hashref functionality
 function db_fetch_hash(& $result,$index_keys) {
   $assoc = array();             // The array we're going to be returning
+
+  if (!is_array($result) || !is_array($index_keys) || !count($index_keys)) {
+	  return($assoc);
+  }
+
   foreach ($result as $row) {
+	  if (!is_array($row)) {
+		    continue;
+	  }
 
         $pointer = & $assoc;            // Start the pointer off at the base of the array
         for ($i=0; $i<count($index_keys); $i++) {
@@ -147,10 +155,13 @@ function db_fetch_hash(& $result,$index_keys) {
                 $key_val= isset($row[$key_name]) ? $row[$key_name]  : "";
                 if (!isset($pointer[$key_val])) {
 
-                        $pointer[$key_val] = "";                // Start a new node
+					$pointer[$key_val] = array();                // Start a new node
                         $pointer = & $pointer[$key_val];                // Move the pointer on to the new node
                 }
                 else {
+					if (!is_array($pointer[$key_val])) {
+						$pointer[$key_val] = array();
+					}
                         $pointer = & $pointer[$key_val];            // Already exists, move the pointer on to the new node
                 }
         } // for $i

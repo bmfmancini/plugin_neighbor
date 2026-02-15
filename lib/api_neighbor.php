@@ -1371,8 +1371,11 @@ function get_site_coords($host_arr = array()) {
 	$sql_query = "SELECT h.id, h.description, h.hostname, h.site_id, s.name, s.address1, s.address2, s.latitude, s.longitude
 					FROM host h
 					LEFT JOIN sites s ON s.id = h.site_id";
-	if (sizeof($host_arr)) {
-		$sql_query.= " WHERE h.id IN (".implode(",",$host_arr).")";				// For very large installations it may be better to pass an array of hosts to filter by
+	if (is_array($host_arr) && sizeof($host_arr)) {
+		$host_arr = array_filter(array_map('intval', $host_arr), function($id) { return $id > 0; });
+		if (sizeof($host_arr)) {
+			$sql_query.= " WHERE h.id IN (".implode(",",$host_arr).")";				// For very large installations it may be better to pass an array of hosts to filter by
+		}
 	}
 	error_log("get_site_coords(): $sql_query");
 	$results = db_fetch_assoc($sql_query);
@@ -1446,15 +1449,27 @@ function neighbor_build_data_query_sql($rule,$host_filter,$edge_filter) {
 	*/
 	
 	$sql_query = 'SELECT h.description AS automation_host, h.disabled, h.status ';
-	$neighbor_options = isset($rule['neighbor_options']) ? explode(",",$rule['neighbor_options']) : array();
+	$neighbor_options = isset($rule['neighbor_options']) ? explode(",", $rule['neighbor_options']) : array();
+	$neighbor_options = array_filter(array_map('trim', $neighbor_options));
+
+	if (!count($neighbor_options)) {
+		$neighbor_options = array('xdp');
+	}
 		
 	$tables = array();
 	$table_join = array();
 	foreach ($neighbor_options as $opt) {
+		if (!preg_match('/^[a-z0-9_]+$/i', $opt)) {
+			continue;
+		}
+
 		$table = "plugin_neighbor__".$opt;
 		array_push($table_join,"LEFT JOIN $table $opt ON $opt.host_id=h.id");
 		array_push($tables,"$table as $opt");
 		$cols = db_get_table_column_types($table);
+		if (!is_array($cols) || !count($cols)) {
+			continue;
+		}
 		foreach ($cols as $col => $rec) {
 			//if (preg_match("/^id$|_id|last_seen|_changed/",$col)) { continue;}
 			$sql_query .= ", $opt.$col";
@@ -1463,13 +1478,20 @@ function neighbor_build_data_query_sql($rule,$host_filter,$edge_filter) {
 
 	/* take matching hosts into account */
 	$rule_id = isset($rule['id']) ? $rule['id'] : '';
-	$sql_where = "(".neighbor_build_matching_objects_filter($rule_id, AUTOMATION_RULE_TYPE_GRAPH_MATCH).")";
-	$sql_where2 = "(".neighbor_build_graph_rule_item_filter($rule_id).")";
-	$sql_where_combined = array($sql_where,$sql_where2);
+	$sql_where_combined = array();
+	$sql_where = trim(neighbor_build_matching_objects_filter($rule_id, AUTOMATION_RULE_TYPE_GRAPH_MATCH));
+	$sql_where2 = trim(neighbor_build_graph_rule_item_filter($rule_id));
+
+	if ($sql_where !== '') {
+		$sql_where_combined[] = "($sql_where)";
+	}
+
+	if ($sql_where2 !== '') {
+		$sql_where_combined[] = "($sql_where2)";
+	}
 	
 	//if ($host_filter) { array_push($sql_where_combined,"(h.description like '%$host_filter%')");}
-	
-	$table_list = implode(",",$tables);
+
 	$table_join_list = implode(" ",$table_join);
 	$query_where = sizeof($sql_where_combined) ? "WHERE ".implode(" AND ",$sql_where_combined) : "";
 	/* build magic query, for matching hosts JOIN tables host and host_template */
