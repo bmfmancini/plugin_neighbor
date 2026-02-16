@@ -30,6 +30,9 @@ if (!isset($_SERVER['argv'][0]) || isset($_SERVER['REQUEST_METHOD'])  || isset($
         die('<br><strong>This script is only meant to run at the command line.</strong>');
 }
 
+// Constants
+define('NEIGHBOR_PROCESS_TIMEOUT', 600);    // 10 minutes - Purge stale process locks
+define('NEIGHBOR_DATA_RETENTION', 900);     // 15 minutes - Data retention for poller output/deltas
 
 declare(ticks = 1);
 ini_set('max_execution_time', '0');
@@ -267,6 +270,7 @@ function discoverCdpNeighbors($host)
 	debug("Processing CDP Neighbors: " . $host['description']);
 	$oidTable = get_neighbor_oid_table();
 	$cdpTable = neighbor_snmp_walk_and_flatten($host, $oidTable['cdpMibWalk']);
+	$neighCount = 0;
 
 	$cdpParsed = array();
 	foreach ($cdpTable as $oid => $val) { 
@@ -305,10 +309,7 @@ function discoverCdpNeighbors($host)
                 }
 	}
 
-	//print_r($cdpParsed); exit;
-	// Update the Database
 
-	$neighCount = 0;
 	foreach ($cdpParsed as $index => $record) { 
 
 		// Create a unique hash of the neighbor based on the record
@@ -344,8 +345,6 @@ function discoverCdpNeighbors($host)
 		$neighIntStatus    = isset($neighIntRecord['ifOperStatus'])   ? $neighIntRecord['ifOperStatus']  : "";
 		$neighIntIp        = isset($neighIntRecord['ifIP'])           ? $neighIntRecord['ifIP']          : "";
 		$neighIntHwAddr    = isset($neighIntRecord['ifHwAddr'])       ? $neighIntRecord['ifHwAddr']      : ""; 
-
-		// print_r($neighIntRecord);
 
 		$hashArray = array(	$host['id'], 'cdp', $myIp, $myHostname,$snmpId,
 					$myIntName, $myIntAlias,$myIntSpeed,$myIntStatus,$myIntIp,$myIntHwAddr,
@@ -388,6 +387,7 @@ function discoverLldpNeighbors($host)
 	$oidTable = get_neighbor_oid_table();
 	debug("Processing LLDP Neighbors: " . $host['description']);
 	$pollerDeadtimer = read_config_option('neighbor_global_deadtimer') ? (int) read_config_option('neighbor_global_deadtimer')  : 60;
+	$neighCount = 0;
 	$hostId=$host['id'];
 	$lldpTable = neighbor_snmp_walk_and_flatten($host, $oidTable['lldpMibWalk']);
 
@@ -467,8 +467,6 @@ function discoverLldpNeighbors($host)
                 $neighIntIp        = isset($neighIntRecord['ifIP'])           ? $neighIntRecord['ifIP']          : "";
                 $neighIntHwAddr    = isset($neighIntRecord['ifHwAddr'])       ? $neighIntRecord['ifHwAddr']      : ""; 
 
-		// print_r($neighIntRecord);
-
 		$hashArray = array(	$host['id'], 'lldp',$myIp, $myHostname,$snmpId,
 					$myIntName, $myIntAlias,$myIntSpeed,$myIntStatus,$myIntIp,$myIntHwAddr,
 					$neighHostId, $neighSnmpId,
@@ -515,7 +513,6 @@ function discoverIpNeighbors($host)
 	
 	$ipParsed = array();
 	$ifTranslate = array();
-	//print_r($ipTable);		
 	foreach ($ipTable as $oid => $val) { 
 
 		if 	(preg_match('/'.$oidTable['ipIpAddr'].'\.(\d+\.\d+\.\d+\.\d+)/',$oid,$matches)) {
@@ -667,7 +664,6 @@ function discoverIpNeighbors($host)
 		
 		foreach ($ipNeighbor as $snmpKey => $record) {
 			list ($mySnmpId, $neighSnmpId) = explode(":",$snmpKey);
-			// print "$hostKey => $snmpKey record:"; print_r($record); exit;
 			
 			$intCache[$myHostId][$mySnmpId] = isset($intCache[$myHostId][$mySnmpId]) ? $intCache[$myHostId][$mySnmpId] : findCactiInterface($myHostId,'',$mySnmpId);
 			$intCache[$neighHostId][$neighSnmpId] = isset($intCache[$neighHostId][$neighSnmpId]) ? $intCache[$neighHostId][$neighSnmpId] : findCactiInterface($neighHostId,'',$neighSnmpId);
@@ -743,6 +739,13 @@ function inferIntSpeed($interface)
 	if (preg_match('/^One/',$interface)) 	{ return(100000); }
 }
 
+/**
+ * Find Cacti host record by hostname or host ID
+ * 
+ * @param string|null $hostName Hostname to search for
+ * @param int|null $hostId Host ID to search for
+ * @return array Hash of host records indexed by description
+ */
 function findCactiHost($hostName = null, $hostId = null)
 {
 	$strippedHost = preg_replace('/\..+/','',$hostName);
@@ -889,7 +892,7 @@ function processHosts()
 	/* Set the booleans based upon current times */
 	
 	/* Purge collectors that run longer than 10 minutes */
-	db_execute('DELETE FROM plugin_neighbor_processes WHERE (UNIX_TIMESTAMP() - UNIX_TIMESTAMP(started)) > 600');
+	db_execute('DELETE FROM plugin_neighbor_processes WHERE (UNIX_TIMESTAMP() - UNIX_TIMESTAMP(started)) > ' . NEIGHBOR_PROCESS_TIMEOUT);
 	/* Do not process collectors are still running */
 	$processes = db_fetch_cell('SELECT count(*) as num_proc FROM plugin_neighbor_processes');
 	if ($processes) {
@@ -1049,19 +1052,17 @@ function processHost($hostId, $seed, $key) {
 	global $debug, $config, $forceRun, $dieNow, $start;
 	
 	if ($dieNow) { return(false); }
-	
-	//print 'php /plugins/neighbor/poller_neighbor.php '.' --host-id=' . $hostId . ' --start=' . $start . ' --seed=' . $seed . ' --key=' . $key . ($forceRun ? ' --force' : '') . ($debug ? ' --debug' : '');
- 
 
 	exec_background(read_config_option('path_php_binary'), ' '
 			. $config['base_path'] . '/plugins/neighbor/poller_neighbor.php' 
 			. ' --host-id=' . $hostId . ' --start=' . $start . ' --seed=' . $seed . ' --key=' . $key . ($forceRun ? ' --force' : '') . ($debug ? ' --debug' : ''));
 }
 
-
-
-
-
+/**
+ * Display plugin version information
+ * 
+ * @return void
+ */
 function displayVersion()
 {
 	global $config;
@@ -1073,6 +1074,11 @@ function displayVersion()
 	echo "Neighbor Plugin - Poller Process, Version " . $info['version'] . ", " . COPYRIGHT_YEARS . "\n";
 }
 
+/**
+ * Display command-line help information
+ * 
+ * @return void
+ */
 function displayHelp()
 {
 	// displayVersion();
@@ -1093,6 +1099,11 @@ function displayHelp()
 	echo "  -h, -H, --help        Display this help message\n\n";
 }
 
+/**
+ * Clean up process table and exit gracefully
+ * 
+ * @return void
+ */
 function exitCleanly()
 {
 	print "Cleaning processes table...";
@@ -1105,7 +1116,12 @@ function exitCleanly()
 	print "Done.\n";
 }
 
-// Handle Ctrl-C a bit more gracefully
+/**
+ * Handle system signals (SIGINT, SIGTERM) for graceful shutdown
+ * 
+ * @param int $signo Signal number received
+ * @return void
+ */
 function sigHandler($signo)
 {
 	global $dieNow;
@@ -1129,8 +1145,12 @@ function sigHandler($signo)
      }
 }
 
-
-
+/**
+ * Convert SNMP timeticks to human-readable format
+ * 
+ * @param int $timeticks SNMP timeticks value (1/100th of a second)
+ * @return string Formatted time string (e.g., "5 Days 12:34:56")
+ */
 function convertTimeticks($timeticks)
 {
 	if($timeticks<=0){
