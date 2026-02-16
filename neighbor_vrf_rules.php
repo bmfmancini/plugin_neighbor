@@ -41,18 +41,18 @@ switch (get_request_var('action')) {
 		save_vrf_rule();
 		break;
 	case 'actions':
-		neighbor_rules_form_actions();
+		neighbor_vrf_rules_form_actions();
 		break;
 	case 'item_movedown':
-		neighbor_rules_item_movedown();
+		neighbor_vrf_rules_item_movedown();
 		header('Location: neighbor_vrf_rules.php?action=edit&id=' . get_filter_request_var('id'));
 		break;
 	case 'item_moveup':
-		neighbor_rules_item_moveup();
+		neighbor_vrf_rules_item_moveup();
 		header('Location: neighbor_vrf_rules.php?action=edit&id=' . get_filter_request_var('id'));
 		break;
 	case 'item_remove':
-		neighbor_rules_item_remove();
+		neighbor_vrf_rules_item_remove();
 		header('Location: neighbor_vrf_rules.php?action=edit&id=' . get_filter_request_var('id'));
 		break;
 	case 'item_edit':
@@ -65,7 +65,7 @@ switch (get_request_var('action')) {
 		header('Location: neighbor_vrf_rules.php?header=false&action=edit'. '&id=' . get_filter_request_var('id'));
 		break;
 	case 'remove':
-		neighbor_rules_remove();
+		neighbor_vrf_rules_remove();
 		header ('Location: neighbor_vrf_rules.php');
 		break;
 	case 'edit':
@@ -82,7 +82,6 @@ switch (get_request_var('action')) {
 		bottom_footer();
 		break;
 	case 'ajax_interface_map':
-		// error_log("Calling ajax_interface_map()...");
 		header('Content-Type: application/json');
 		ajax_interface_nodes();
 		break;
@@ -115,9 +114,6 @@ function save_vrf_rule() {
 			$rule_id = sql_save($save, 'plugin_neighbor_vrf_rules');
 			if ($rule_id) 	{ raise_message(1); }
 			else 			{ raise_message(2); }
-		}
-		else {
-			global $messages;
 		}
 
 		header('Location: neighbor_vrf_rules.php?header=false&action=edit&id=' . (empty($rule_id) ? get_nfilter_request_var('id') : $rule_id));
@@ -185,7 +181,7 @@ function save_vrf_rule() {
  The 'actions' function
  ------------------------ */
 
-function neighbor_rules_form_actions() {
+function neighbor_vrf_rules_form_actions() {
 	global $config, $neighbor_rules_actions;
 
         /* ================= input validation ================= */
@@ -310,7 +306,7 @@ function neighbor_rules_form_actions() {
 /* --------------------------
  Rule Item Functions
  -------------------------- */
-function neighbor_rules_item_movedown() {
+function neighbor_vrf_rules_item_movedown() {
 	/* ================= input validation ================= */
 	get_filter_request_var('id');
 	get_filter_request_var('item_id');
@@ -324,7 +320,7 @@ function neighbor_rules_item_movedown() {
 	}
 }
 
-function neighbor_rules_item_moveup() {
+function neighbor_vrf_rules_item_moveup() {
 	/* ================= input validation ================= */
 	get_filter_request_var('id');
 	get_filter_request_var('item_id');
@@ -338,7 +334,7 @@ function neighbor_rules_item_moveup() {
 	}
 }
 
-function neighbor_rules_item_remove() {
+function neighbor_vrf_rules_item_remove() {
 	/* ================= input validation ================= */
 	get_filter_request_var('item_id');
 	get_filter_request_var('rule_type');
@@ -411,7 +407,7 @@ function neighbor_vrf_rules_item_edit() {
  Rule Functions
  --------------------- */
 
-function neighbor_rules_remove() {
+function neighbor_vrf_rules_remove() {
 	/* ================= input validation ================= */
 	get_filter_request_var('id');
 	/* ==================================================== */
@@ -779,13 +775,13 @@ function neighbor_vrf_rules() {
 
 	$total_rows = 0;
 	$page 			= get_request_var('page') ? get_request_var('page') : 1;
-	$startRow 		= ($page-1) * $rows;
-	$endRow 		= (($page-1) * $rows) + $rows - 1;
-	$sortColumn 	= get_request_var('sort_column');
-	$sortDirection 	= get_request_var('sort_direction');
-	$filterVal 		= get_request_var('filter');
+	$start_row 		= ($page-1) * $rows;
+	$end_row 		= (($page-1) * $rows) + $rows - 1;
+	$sort_column 	= get_request_var('sort_column');
+	$sort_direction 	= get_request_var('sort_direction');
+	$filter_val 		= get_request_var('filter');
 
-	$neighbor_rules = get_neighbor_vrf_rules($total_rows,$startRow, $rows,$filterVal,$sortColumn,$sortDirection);
+	$neighbor_rules = get_neighbor_vrf_rules($total_rows,$start_row, $rows,$filter_val,$sort_column,$sort_direction);
 	get_neighbor_vrf_rules_filter();
 
 	$nav = html_nav_bar('neighbor_vrf_rules.php?filter=' . get_request_var('filter'), MAX_DISPLAY_PAGES, get_request_var('page'), $rows, $total_rows, 7, __('VRF Mapping Rules'), 'page', 'main');
@@ -828,22 +824,22 @@ function neighbor_vrf_rules() {
 	form_end();
 }
 
-function get_neighbor_vrf_rules(&$total_rows = 0, $rowStart = 1, $rowEnd = 25, $filterVal = '', $orderField = 'hostname', $orderDir = 'asc', $output = 'array') {
+function get_neighbor_vrf_rules(&$total_rows = 0, $row_start = 1, $row_end = 25, $filter_val = '', $order_field = 'hostname', $order_dir = 'asc', $output = 'array') {
 	
-	$sqlWhere 	= '';
-    $sqlOrder 	= '';
-    $sqlLimit 	= sprintf("limit %d,%d",$rowStart,$rowEnd);
+	$sql_where 	= '';
+    $sql_order 	= '';
+    $sql_limit 	= sprintf("limit %d,%d",$row_start,$row_end);
     $result 	= '';
     
     $conditions = array();
     $params = array();
 
-	if ($orderField && ($orderDir != ''))   { $sqlOrder = "order by $orderField $orderDir"; }
-	if ($filterVal != '')										{ array_push($conditions,"`name` like ?"); array_push($params, $filterVal); }
+	if ($order_field && ($order_dir != ''))   { $sql_order = "order by $order_field $order_dir"; }
+	if ($filter_val != '')										{ array_push($conditions,"`name` like ?"); array_push($params, $filter_val); }
 		
-    $sqlWhere = count($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
-    $result = db_fetch_assoc_prepared("select * from plugin_neighbor_vrf_rules rules $sqlWhere $sqlOrder $sqlLimit", $params);
-    $total_rows = db_fetch_cell_prepared("select count(*) as total_rows from plugin_neighbor_vrf_rules rules $sqlWhere",$params);
+    $sql_where = count($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
+    $result = db_fetch_assoc_prepared("select * from plugin_neighbor_vrf_rules rules $sql_where $sql_order $sql_limit", $params);
+    $total_rows = db_fetch_cell_prepared("select count(*) as total_rows from plugin_neighbor_vrf_rules rules $sql_where",$params);
     //print "Set total_rows = $total_rows<br>";
     if ($output == 'array') 	{ return($result);}
     elseif ($output == 'json') 	{ return(json_encode($result));}
@@ -902,7 +898,7 @@ function get_neighbor_vrf_rules_filter() {
 		</form>
 		<script type='text/javascript'>
 		function applyFilter() {
-			strURL = 'neighbor_rules.php' +
+			strURL = 'neighbor_vrf_rules.php' +
 				'?status='        + $('#status').val()+
 				'&filter='        + $('#filter').val()+
 				'&rows='          + $('#rows').val()+
@@ -911,7 +907,7 @@ function get_neighbor_vrf_rules_filter() {
 		}
 
 		function clearFilter() {
-			strURL = 'neighbor_rules.php?clear=1&header=false';
+			strURL = 'neighbor_vrf_rules.php?clear=1&header=false';
 			loadPageNoHeader(strURL);
 		}
 
@@ -1505,7 +1501,7 @@ function neighbor_display_vrf_matching_hosts($rule, $rule_type, $url) {
 
 function neighbor_display_vrf_object_matches($rule, $url) {
 	
-	global $config, $item_rows, $config;
+	global $config, $item_rows;
 	global $neighbor_vrf_object_fields;
 	
 	if (isset_request_var('oclear')) { set_request_var('clear', 'true'); }
