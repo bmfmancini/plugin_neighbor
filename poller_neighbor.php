@@ -961,9 +961,13 @@ function autoDiscoverHosts()
  */
 function processHosts()
 {
-	global $start, $seed, $verbose, $debug, $dieNow;
-	
+	global $start, $seed, $verbose, $debug, $dieNow, $config;
+	global $database_hostname, $database_username, $database_password, $database_default, $database_type, $database_port, $database_ssl, $database_ssl_key, $database_ssl_cert, $database_ssl_ca;
+
 	if ($verbose) { echo "INFO: Processing Hosts Begins\n"; }
+	if (!function_exists('pcntl_fork')) {
+		echo "INFO: PCNTL is not available. Using sequential processing.\n";
+	}
 
 	/* All time/dates will be stored in timestamps
 	 * Get Autodiscovery Lastrun Information
@@ -997,46 +1001,114 @@ function processHosts()
 	/* Remove entries for disabled or removed hosts */
 	db_execute("DELETE FROM plugin_neighbor_xdp WHERE host_id IN (SELECT id FROM host WHERE disabled='on')");
 
-	// db_execute("DELETE FROM plugin_neighbor_ip WHERE host_id IN (SELECT id FROM host WHERE disabled='on')");
-	// db_execute("DELETE FROM plugin_neighbor_alias WHERE host_id IN (SELECT id FROM host WHERE disabled='on')");
-	// db_execute("DELETE FROM plugin_neighbor_routing WHERE host_id IN (SELECT id FROM host WHERE disabled='on')");
-
 	$concurrentProcesses = read_config_option('neighbor_global_poller_processes');
+	$concurrentProcesses = ($concurrentProcesses == '' ? 5 : $concurrentProcesses);
+
 	echo "INFO: Launching Collectors Starting\n";
-	$i = 0;
+	
+	$running_pids = array();
+	
 	if (sizeof($hosts)) {
 		foreach ($hosts as $host) {
-			while ($dieNow == 0) {
-				$processes = db_fetch_cell('SELECT COUNT(*) as num_proc FROM plugin_neighbor_processes');
-				debug("Found $processes of $concurrentProcesses\n");
-				if ($processes < $concurrentProcesses) {
-					/* put a placeholder in place to prevent overloads on slow systems */
-					$key = rand();
-					db_execute_prepared("INSERT INTO plugin_neighbor_processes (pid, taskid, started,host_id) VALUES (?,?, NOW(),?)",array($key, $seed,$host['host_id']));
-					debug("INFO: Launching Host Collector For: '" . $host['description'] . '[' . $host['hostname'] . "]'\n");
-					processHost($host['host_id'], $seed, $key);
-					usleep(10000);
-					break;
-				} else {
-					print ".";
-					sleep(1);
+			if ($dieNow) break;
+
+			// PCNTL Method (Linux/Unix High Performance)
+			if (function_exists('pcntl_fork')) {
+				while (1) {
+					if ($dieNow) break 2;
+
+					// Clean up finished children
+					foreach ($running_pids as $pid => $data) {
+						$res = pcntl_waitpid($pid, $status, WNOHANG);
+						if ($res == -1 || $res > 0) {
+							unset($running_pids[$pid]);
+						}
+					}
+
+					// If we have slots available, fork a new one
+					if (count($running_pids) < $concurrentProcesses) {
+						$pid = pcntl_fork();
+						if ($pid == -1) {
+							// Fork failed
+							die("FATAL: Could not fork process!");
+						} elseif ($pid) {
+							// Parent
+							$running_pids[$pid] = true;
+							usleep(1000); // Slight pause to let child start
+						} else {
+							// Child
+							// Reset database connection for child (IMPORTANT for MySQL)
+							db_close();
+							db_connect_real($database_hostname, $database_username, $database_password, $database_default, $database_type, $database_port);
+							
+							$key = rand();
+							// Only use DB tracking for visual status, not process control
+							db_execute_prepared("INSERT INTO plugin_neighbor_processes (pid, taskid, started, host_id) VALUES (?,?, NOW(),?)", array($key, $seed, $host['host_id']));
+							
+							debug("INFO: [Child PID " . getmypid() . "] processing host: '" . $host['description'] . "'");
+							
+							// Run the actual work
+							discoverHost($host['host_id']);
+							
+							// Remove lock
+							db_execute_prepared('DELETE FROM plugin_neighbor_processes WHERE pid=?', array($key));
+							
+							exit(0);
+						}
+						break; // Break wait loop to process next host
+					}
+					
+					// Table full, wait a bit
+					usleep(50000);
+				}
+			} 
+			// Fallback Method (Windows / Non-PCNTL)
+			else {
+				// Old logic: use DB table to count processes
+				while ($dieNow == 0) {
+					$processes = db_fetch_cell('SELECT COUNT(*) as num_proc FROM plugin_neighbor_processes');
+					if ($processes < $concurrentProcesses) {
+						$key = rand();
+						db_execute_prepared("INSERT INTO plugin_neighbor_processes (pid, taskid, started,host_id) VALUES (?,?, NOW(),?)",array($key, $seed,$host['host_id']));
+						debug("INFO: Launching Background Shell for: '" . $host['description'] . "'");
+						processHost($host['host_id'], $seed, $key);
+						usleep(10000);
+						break;
+					} else {
+						sleep(1);
+					}
 				}
 			}
 		}
 	}
 	
-	echo "INFO: All Hosts Launched, proceeding to wait for completion\n";
-	/* wait for all processes to end or max run time */
-	while ($dieNow == 0) {
-		$processesLeft 	= db_fetch_cell_prepared("SELECT count(*) as num_proc FROM plugin_neighbor_processes WHERE taskid=?",array($seed));
-		if ($processesLeft == 0) {
-			echo "INFO: All Processees Complete, Exiting\n";
-			break;
-		} else {
-			echo "INFO: Waiting on '$processesLeft' Processes\n";
-			sleep(2);
+	echo "INFO: All Hosts Launched, waiting for completion\n";
+	
+	// Wait for stragglers
+	if (function_exists('pcntl_fork')) {
+		while (count($running_pids) > 0) {
+			foreach ($running_pids as $pid => $data) {
+				$res = pcntl_waitpid($pid, $status, WNOHANG);
+				if ($res == -1 || $res > 0) {
+					unset($running_pids[$pid]);
+				}
+			}
+			usleep(100000);
+			if ($dieNow) break;
+		}
+	} else {
+		/* wait for all processes to end or max run time */
+		while ($dieNow == 0) {
+			$processesLeft 	= db_fetch_cell_prepared("SELECT count(*) as num_proc FROM plugin_neighbor_processes WHERE taskid=?",array($seed));
+			if ($processesLeft == 0) {
+				break;
+			} else {
+				sleep(2);
+			}
 		}
 	}
+	
+	echo "INFO: Process Complete.\n";
 	
 	echo "INFO: Updating Last Run Statistics\n";
 	
