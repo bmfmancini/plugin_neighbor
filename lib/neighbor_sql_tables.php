@@ -331,12 +331,18 @@ function neighbor_setup_table () {
        * plugin install/upgrade by not auto-altering host with many additional columns.
        */
       
-      // Add neighbor discovery columns to host table
-      add_fields_host();
+      // Do not auto-alter the core host table during install/upgrade.
+      // Large/extended Cacti installs can exceed InnoDB row-size limits.
+      // To force legacy behavior manually, call add_fields_host() from a controlled migration step.
 
 }
 
 function add_fields_host() {
+
+      if (!neighbor_allow_host_table_alter()) {
+            neighbor_log_host_column_add_failure('all', "NEIGHBOR: Skipping automatic host table ALTERs to avoid row-size failures. Define NEIGHBOR_ALLOW_HOST_TABLE_ALTER=true to force adding host columns.");
+            return;
+      }
 
 	$fields = array(
                         'neighbor_discover_enable',
@@ -379,12 +385,18 @@ function add_fields_host() {
       }
 }
 
+function neighbor_allow_host_table_alter() {
+      return defined('NEIGHBOR_ALLOW_HOST_TABLE_ALTER') && NEIGHBOR_ALLOW_HOST_TABLE_ALTER === true;
+}
+
 function neighbor_host_column_exists($column_name) {
       return (bool) db_fetch_cell_prepared('SHOW COLUMNS FROM host LIKE ?', array($column_name));
 }
 
-function neighbor_log_host_column_add_failure($column_name) {
-      $message = "NEIGHBOR: Unable to add host column '$column_name'. Skipping remaining host column adds (likely host row size limit).";
+function neighbor_log_host_column_add_failure($column_name, $custom_message = '') {
+      $message = $custom_message !== ''
+            ? $custom_message
+            : "NEIGHBOR: Unable to add host column '$column_name'. Skipping remaining host column adds (likely host row size limit).";
 
       if (function_exists('cacti_log')) {
             cacti_log($message, true, 'NEIGHBOR');

@@ -366,6 +366,10 @@ function neighbor_show_tab() {
 function neighbor_config_form () {
         global $fields_host_edit, $criticalities;
 
+	if (!neighbor_host_discovery_columns_ready()) {
+		return;
+	}
+
         $fields_host_edit2 = $fields_host_edit;
         $fields_host_edit3 = array();
 		//error_log(print_r($fields_host_edit2,1));
@@ -472,7 +476,7 @@ function neighbor_device_action_execute($action) {
 
         $selected_items = sanitize_unserialize_selected_items(get_nfilter_request_var('selected_items'));
 
-        if ($selected_items != false) {
+		if ($selected_items != false) {
                 if ($action == 'neighbor_enable' || $action == 'neighbor_disable') {
                         for ($i = 0; ($i < count($selected_items)); $i++) {
                                 if ($action == 'neighbor_enable') {
@@ -481,7 +485,11 @@ function neighbor_device_action_execute($action) {
                                         db_execute("UPDATE host SET neighbor_enable='' WHERE id='" . $selected_items[$i] . "'");
                                 }
                         }
-                }else{
+				}else{
+					if (!neighbor_host_discovery_columns_ready()) {
+						return $action;
+					}
+
                         for ($i = 0; ($i < count($selected_items)); $i++) {
 						foreach ($fields_host_edit as $field_name => $field_array) {
                                         if (isset_request_var("t_$field_name")) {
@@ -518,7 +526,17 @@ function neighbor_device_action_prepare($save) {
                                 <p><div class='itemlist'><ul>" . $save['host_list'] . "</ul></div></p>
                        </td>
                 </tr>";
-        } else {
+		} else {
+			if (!neighbor_host_discovery_columns_ready()) {
+				print "<tr>
+				<td colspan='2' class='even'>
+					<p>" . __('Neighbor host-specific columns are not available on this system. Global plugin settings still apply.', 'neighbor') . "</p>
+				</td>
+			</tr>";
+
+				return;
+			}
+
                 print "<tr>
                         <td colspan='2' class='even'>
                                 <p>" . __('Click \'Continue\' to Change the neighbor discovery settings for the following device(s). Remember to check \'Update this Field\' to indicate which columns to update.', 'neighbor') . "</p>
@@ -561,6 +579,10 @@ function neighbor_device_action_prepare($save) {
 }
 
 function neighbor_api_device_save($save) {
+		if (!neighbor_host_discovery_columns_ready()) {
+				return $save;
+		}
+
 		 $fields = array(
                         'neighbor_discover_enable',
                         'neighbor_discover_cdp',
@@ -592,6 +614,36 @@ function neighbor_api_device_save($save) {
 function neighbor_device_remove($devices) {
         db_execute('DELETE FROM plugin_neighbor_xdp WHERE host_id IN(' . implode(',', $devices) . ')');
         return $devices;
+}
+
+function neighbor_host_discovery_columns_ready() {
+	static $ready = null;
+
+	if ($ready !== null) {
+		return $ready;
+	}
+
+	$fields = array(
+		'neighbor_discover_enable',
+		'neighbor_discover_cdp',
+		'neighbor_discover_lldp',
+		'neighbor_discover_ip',
+		'neighbor_discover_switching',
+		'neighbor_discover_ifalias',
+		'neighbor_discover_ospf',
+		'neighbor_discover_bgp',
+		'neighbor_discover_isis',
+	);
+
+	foreach ($fields as $field) {
+		if (!db_fetch_cell_prepared('SHOW COLUMNS FROM host LIKE ?', array($field))) {
+			$ready = false;
+			return $ready;
+		}
+	}
+
+	$ready = true;
+	return $ready;
 }
 
 
