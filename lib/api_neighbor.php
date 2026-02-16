@@ -297,6 +297,278 @@ function neighbor_global_item_edit($rule_id, $rule_item_id, $rule_type) {
 }
 
 
+/**
+ * Render device filter form with status and template filters
+ * 
+ * @param string $url Base URL for form actions
+ * 
+ * @return void Outputs HTML filter form
+ */
+function neighbor_render_device_filter_form($url) {
+	global $item_rows;
+	
+	$host_templates = db_fetch_assoc('SELECT id, name FROM host_template ORDER BY name');
+	?>
+	<tr class='even'>
+		<td>
+			<form id='form_automation_hosts' action='<?php print htmlspecialchars($url);?>'>
+				<table class='filterTable'>
+					<tr>
+						<td>
+							<?php print __('Search');?>
+						</td>
+						<td>
+							<input type='text' id='filterd' size='25' value='<?php print html_escape_request_var('filterd');?>'>
+						</td>
+						<td>
+							<?php print __('Status');?>
+						</td>
+						<td>
+							<select id='host_status'>
+								<option value='-1'<?php if (get_request_var('host_status') == '-1') {?> selected<?php }?>><?php print __('Any');?></option>
+								<option value='-3'<?php if (get_request_var('host_status') == '-3') {?> selected<?php }?>><?php print __('Enabled');?></option>
+								<option value='-2'<?php if (get_request_var('host_status') == '-2') {?> selected<?php }?>><?php print __('Disabled');?></option>
+								<option value='-4'<?php if (get_request_var('host_status') == '-4') {?> selected<?php }?>><?php print __('Not Up');?></option>
+								<option value='3'<?php if (get_request_var('host_status') == '3') {?> selected<?php }?>><?php print __('Up');?></option>
+								<option value='1'<?php if (get_request_var('host_status') == '1') {?> selected<?php }?>><?php print __('Down');?></option>
+								<option value='2'<?php if (get_request_var('host_status') == '2') {?> selected<?php }?>><?php print __('Recovering');?></option>
+								<option value='0'<?php if (get_request_var('host_status') == '0') {?> selected<?php }?>><?php print __('Unknown');?></option>
+							</select>
+						</td>
+						<td>
+							<?php print __('Template');?>
+						</td>
+						<td>
+							<select id='host_template_id'>
+								<option value='-1'<?php if (get_request_var('host_template_id') == '-1') {?> selected<?php }?>><?php print __('Any');?></option>
+								<option value='0'<?php if (get_request_var('host_template_id') == '0') {?> selected<?php }?>><?php print __('None');?></option>
+								<?php foreach ($host_templates as $template) { ?>
+									<option value='<?php print $template['id'];?>'<?php if (get_request_var('host_template_id') == $template['id']) {?> selected<?php }?>><?php print html_escape($template['name']);?></option>
+								<?php } ?>
+							</select>
+						</td>
+						<td>
+							<?php print __('Devices');?>
+						</td>
+						<td>
+							<select id='rowsd'>
+								<option value='-1'<?php if (get_request_var('rowsd') == '-1') {?> selected<?php }?>><?php print __('Default');?></option>
+								<?php
+								if (sizeof($item_rows)) {
+									foreach ($item_rows as $key => $value) {
+										print "<option value='" . $key . "'" . (get_request_var('rowsd') == $key ? ' selected' : '') . '>' . $value . "</option>\n";
+									}
+								}
+								?>
+							</select>
+						</td>
+						<td>
+							<span>
+								<input id='drefresh' type='button' value='<?php print __esc('Go');?>'>
+								<input id='dclear' type='button' value='<?php print __esc('Clear');?>'>
+							</span>
+						</td>
+					</tr>
+				</table>
+			</form>
+			<script type='text/javascript'>
+			function applyDeviceFilter() {
+				strURL = '<?php print $url;?>&host_status=' + $('#host_status').val() +
+					'&host_template_id=' + $('#host_template_id').val() +
+					'&rowsd=' + $('#rowsd').val() +
+					'&filterd=' + $('#filterd').val() +
+					'&paged=1&header=false';
+				loadPageNoHeader(strURL);
+			}
+
+			function clearDeviceFilter() {
+				strURL = '<?php print $url;?>&cleard=1&header=false';
+				loadPageNoHeader(strURL);
+			}
+
+			$(function() {
+				$('#drefresh').click(function() { applyDeviceFilter(); });
+				$('#dclear').click(function() { clearDeviceFilter(); });
+				$('#host_status, #host_template_id, #rowsd').change(function() { applyDeviceFilter(); });
+				$('#form_automation_hosts').submit(function(event) {
+					event.preventDefault();
+					applyDeviceFilter();
+				});
+			});
+			</script>
+		</td>
+	</tr>
+	<?php
+}
+
+/**
+ * Build WHERE clause for host filtering based on status and template
+ * 
+ * @param int $rule_id Rule ID
+ * @param int $rule_type Rule type
+ * 
+ * @return string SQL WHERE clause
+ */
+function neighbor_build_host_filter_sql($rule_id, $rule_type) {
+	$sql_where = '';
+	
+	if (get_request_var('filterd') != '') {
+		$where_conditions = array();
+		$where_params = array();
+		
+		array_push($where_conditions, "h.hostname LIKE ?");
+		array_push($where_params, '%' . get_request_var('filterd') . '%');
+		
+		array_push($where_conditions, "h.description LIKE ?");
+		array_push($where_params, '%' . get_request_var('filterd') . '%');
+		
+		array_push($where_conditions, "ht.name LIKE ?");
+		array_push($where_params, '%' . get_request_var('filterd') . '%');
+		
+		$sql_where = 'WHERE (' . implode(' OR ', $where_conditions) . ')';
+	}
+	
+	if (get_request_var('host_status') == '-1') {
+		// Show all items
+	} elseif (get_request_var('host_status') == '-3') {
+		$sql_where .= ($sql_where != '' ? " AND h.disabled = ''" : "WHERE h.disabled = ''");
+	} elseif (get_request_var('host_status') == '-2') {
+		$sql_where .= ($sql_where != '' ? " AND h.disabled = 'on'" : "WHERE h.disabled = 'on'");
+	} elseif (get_request_var('host_status') == '-4') {
+		$sql_where .= ($sql_where != '' ? " AND (h.status != 3 AND h.disabled = '')" : "WHERE (h.status != 3 AND h.disabled = '')");
+	} else {
+		$sql_where .= ($sql_where != '' ? ' AND (h.status=' . get_request_var('host_status') . " AND h.disabled = '')" : "WHERE (h.status=" . get_request_var('host_status') . " AND h.disabled = '')");
+	}
+	
+	if (get_request_var('host_template_id') == '-1') {
+		// Show all items
+	} elseif (get_request_var('host_template_id') == '0') {
+		$sql_where .= ($sql_where != '' ? ' AND h.host_template_id=0' : 'WHERE h.host_template_id=0');
+	} elseif (!isempty_request_var('host_template_id')) {
+		$sql_where .= ($sql_where != '' ? ' AND h.host_template_id=' . get_request_var('host_template_id') : 'WHERE h.host_template_id=' . get_request_var('host_template_id'));
+	}
+	
+	return $sql_where;
+}
+
+/**
+ * Get matching hosts from database based on rule and filters
+ * 
+ * @param int $rule_id Rule ID
+ * @param int $rule_type Rule type
+ * @param string $sql_where WHERE clause from filters
+ * @param int $rows Rows per page
+ * @param int $page Current page
+ * @param int &$total_rows Total row count (output)
+ * 
+ * @return array Array of matching hosts
+ */
+function neighbor_get_matching_hosts($rule_id, $rule_type, $sql_where, $rows, $page, &$total_rows) {
+	$host_graphs = array_rekey(db_fetch_assoc('SELECT host_id, count(*) as graphs FROM graph_local GROUP BY host_id'), 'host_id', 'graphs');
+	$host_data_sources = array_rekey(db_fetch_assoc('SELECT host_id, count(*) as data_sources FROM data_local GROUP BY host_id'), 'host_id', 'data_sources');
+	
+	$sql_query = 'SELECT h.id AS host_id, h.hostname, h.description, h.disabled, h.status, ht.name AS host_template_name '
+		. 'FROM host AS h '
+		. 'LEFT JOIN host_template AS ht ON (h.host_template_id=ht.id) ';
+	
+	if ($sql_where != '') {
+		$sql_filter = ' AND (' . neighbor_build_matching_objects_filter($rule_id, $rule_type) . ')';
+	} else {
+		$sql_filter = ' WHERE (' . neighbor_build_matching_objects_filter($rule_id, $rule_type) .')';
+	}
+	
+	$rows_query = $sql_query . $sql_where . $sql_filter;
+	$where_params = array(); // Would need to pass params if using prepared statements fully
+	
+	if (count($where_params) > 0) {
+		$total_rows = count((array) db_fetch_assoc_prepared($rows_query, $where_params));
+	} else {
+		$total_rows = count((array) db_fetch_assoc($rows_query, false));
+	}
+	
+	$sortby = get_request_var('sort_column');
+	if ($sortby == 'hostname') {
+		$sortby = 'INET_ATON(hostname)';
+	}
+	
+	$sql_query = $rows_query . ' ORDER BY ' . $sortby . ' ' . get_request_var('sort_direction') . ' LIMIT ' . ($rows * ($page - 1)) . ',' . $rows;
+	
+	if (count($where_params) > 0) {
+		$hosts = db_fetch_assoc_prepared($sql_query, $where_params);
+	} else {
+		$hosts = db_fetch_assoc($sql_query, false);
+	}
+	
+	// Merge graph and data source counts
+	if (sizeof($hosts)) {
+		foreach ($hosts as &$host) {
+			$host['graphs'] = isset($host_graphs[$host['host_id']]) ? $host_graphs[$host['host_id']] : 0;
+			$host['data_sources'] = isset($host_data_sources[$host['host_id']]) ? $host_data_sources[$host['host_id']] : 0;
+		}
+	}
+	
+	return $hosts;
+}
+
+/**
+ * Render table of matching hosts
+ * 
+ * @param array $hosts Array of host records
+ * @param array $host_graphs Graph counts by host_id
+ * @param array $host_data_sources Data source counts by host_id
+ * @param string $url Base URL
+ * @param int $page Current page
+ * 
+ * @return void Outputs HTML table
+ */
+function neighbor_render_hosts_table($hosts, $url, $page) {
+	$display_text = array(
+		'description'        => array(__('Description'), 'ASC'),
+		'hostname'           => array(__('Hostname'), 'ASC'),
+		'status'             => array(__('Status'), 'ASC'),
+		'host_template_name' => array(__('Device Template Name'), 'ASC'),
+		'id'                 => array(__('ID'), 'ASC'),
+		'nosort1'            => array(__('Graphs'), 'ASC'),
+		'nosort2'            => array(__('Data Sources'), 'ASC'),
+	);
+	
+	html_header_sort(
+		$display_text,
+		get_request_var('sort_column'),
+		get_request_var('sort_direction'),
+		'1',
+		$url . '?action=edit&id=' . get_request_var('id') . '&paged=' . $page
+	);
+	
+	if (sizeof($hosts)) {
+		foreach ($hosts as $host) {
+			form_alternate_row('line' . $host['host_id'], true);
+			form_selectable_cell(filter_value($host['description'], get_request_var('filterd'), 'host.php?action=edit&id=' . $host['host_id']), $host['host_id']);
+			form_selectable_cell(filter_value($host['hostname'], get_request_var('filterd')), $host['host_id']);
+			form_selectable_cell(get_colored_device_status(($host['disabled'] == 'on' ? true : false), $host['status']), $host['host_id']);
+			form_selectable_cell(filter_value($host['host_template_name'], get_request_var('filterd')), $host['host_id']);
+			form_selectable_cell(round(($host['host_id']), 2), $host['host_id']);
+			form_selectable_cell($host['graphs'], $host['host_id']);
+			form_selectable_cell($host['data_sources'], $host['host_id']);
+			form_end_row();
+		}
+	} else {
+		print "<tr><td colspan='8'><em>" . __('No Matching Devices') . "</em></td></tr>";
+	}
+}
+
+/**
+ * Display matching hosts for automation rule
+ * 
+ * Main orchestrator function that displays hosts matching rule criteria
+ * with filtering, pagination, and table rendering.
+ * 
+ * @param array $rule Rule configuration
+ * @param int $rule_type Rule type constant
+ * @param string $url Base URL for navigation
+ * 
+ * @return void Outputs complete HTML interface
+ */
 function neighbor_display_matching_hosts($rule, $rule_type, $url) {
 	global $device_actions, $item_rows;
 
@@ -773,6 +1045,170 @@ function neighbor_build_sort_order($index_order, $default_order = '') {
 	return $sql_order;
 }
 
+/**
+ * Render filter form for neighbor object matching
+ * 
+ * @param string $url Base URL for form submission
+ * 
+ * @return void Outputs HTML filter form
+ */
+function neighbor_render_object_filter_form($url) {
+	global $item_rows;
+	?>
+	<tr class='even'>
+		<td>
+			<form id='form_automation_objects' action='<?php print htmlspecialchars($url);?>'>
+				<table class='filterTable'>
+					<tr>
+						<td>
+							<?php print __('Search');?>
+						</td>
+						<td>
+							<input type='text' id='filter' size='25' value='<?php print html_escape_request_var('filter');?>'>
+						</td>
+						<td>
+							<?php print __('Objects');?>
+						</td>
+						<td>
+							<select id='rows' onChange='applyFilter()'>
+								<option value='-1'<?php if (get_request_var('rows') == '-1') {?> selected<?php }?>><?php print __('Default');?></option>
+								<?php
+								if (sizeof($item_rows)) {
+									foreach ($item_rows as $key => $value) {
+										print "<option value='". $key . "'"; if (get_request_var('rows') == $key) { print ' selected'; } print '>' . $value . '</option>\n';
+									}
+								}
+								?>
+							</select>
+						</td>
+						<td>
+							<span>
+								<input id='orefresh' type='button' value='<?php print __esc('Go');?>'>
+								<input id='oclear' type='button' value='<?php print __esc('Clear');?>'>
+							</span>
+						</td>
+					</tr>
+				</table>
+			</form>
+			<script type='text/javascript'>
+			function applyObjectFilter() {
+				strURL = '<?php print $url;?>&rows=' + $('#rows').val() + '&filter=' + $('#filter').val() + '&page=1&header=false';
+				loadPageNoHeader(strURL);
+			}
+
+			function clearObjectFilter() {
+				strURL = '<?php print $url;?>&oclear=1&header=false';
+				loadPageNoHeader(strURL);
+			}
+
+			$(function() {
+				$('#orefresh').click(function() {
+					applyObjectFilter();
+				});
+	
+				$('#oclear').click(function() {
+					clearObjectFilter();
+				});
+	
+				$('#form_automation_objects').submit(function(event) {
+					event.preventDefault();
+					applyObjectFilter();
+				});
+			});
+			</script>
+		</td>
+		</tr>
+	<?php
+}
+
+/**
+ * Get matching neighbor objects from database based on rule
+ * 
+ * @param array $rule Rule configuration
+ * @param int $rows Rows per page
+ * @param int $page Current page number
+ * @param int &$total_rows Total rows (output parameter)
+ * 
+ * @return array Array of neighbor objects for current page
+ */
+function neighbor_get_matching_objects($rule, $rows, $page, &$total_rows) {
+	$sort_column = get_request_var('sort_column');
+	$sort_direction = get_request_var('sort_direction');
+	
+	$sql_order = "";
+	$rule_options = isset($rule['neighbor_options']) ? $rule['neighbor_options'] : '';
+	
+	if ($rule_options && $sort_column && !($sort_column == 'type' || $sort_column == 'interface_status')) {
+		$sql_order = "ORDER by $sort_column $sort_direction";
+	} elseif ($rule_options && $sort_column && ($sort_column == 'type' || $sort_column == 'interface_status')) {
+		$sql_order = "ORDER by $sort_column $sort_direction";
+	}
+	
+	$sql_query = $sql_order ? neighbor_build_data_query_sql($rule) . ' ' . $sql_order : neighbor_build_data_query_sql($rule);
+	
+	$start_rec = $rows * ($page - 1);
+	$all_neighbor_objects = db_fetch_assoc($sql_query);
+	$all_neighbor_objects = dedup_by_hash($all_neighbor_objects);
+	$total_rows = count((array) $all_neighbor_objects);
+	
+	return array_slice($all_neighbor_objects, $start_rec, $rows);
+}
+
+/**
+ * Render table of neighbor objects
+ * 
+ * @param array $neighbor_objects Array of neighbor objects to display
+ * @param array $field_definitions Field definitions for table columns
+ * @param int $rule_id Rule ID
+ * @param string $sort_column Current sort column
+ * @param string $sort_direction Current sort direction
+ * 
+ * @return void Outputs HTML table
+ */
+function neighbor_render_objects_table($neighbor_objects, $field_definitions, $rule_id, $sort_column, $sort_direction) {
+	global $config;
+	
+	$display_text = array();
+	$field_names = array();
+	
+	foreach ($field_definitions as $field => $title) {
+		$display_text[$field][0] = $title;
+		$display_text[$field][1] = "ASC";
+		$field_names[] = $field;
+	}
+	
+	html_header_sort($display_text, $sort_column, $sort_direction, '', $config['url_path'] . "plugins/neighbor/neighbor_rules.php?action=edit&id=$rule_id");
+	
+	if (sizeof($neighbor_objects)) {
+		foreach ($neighbor_objects as $rec) {
+			form_alternate_row('line' . $rec['id'], true);
+			
+			foreach ($field_names as $field) {
+				if (isset($rec[$field])) {
+					form_selectable_cell($rec[$field], $rec['id']);
+				} else {
+					form_selectable_cell('', $rec['id']);
+				}
+			}
+			
+			form_end_row();
+		}
+	} else {
+		print "<tr><td colspan='" . sizeof($field_names) . "'><em>" . __('No Matching Objects') . "</em></td></tr>";
+	}
+}
+
+/**
+ * Display neighbor objects matching automation rule criteria
+ * 
+ * Main function that orchestrates display of matching neighbor objects
+ * including filter form, data retrieval, and table rendering.
+ * 
+ * @param array $rule Automation rule configuration
+ * @param string $url Base URL for page navigation
+ * 
+ * @return void Outputs complete HTML interface
+ */
 function neighbor_display_new_graphs($rule, $url) {
 	
 	global $config, $item_rows, $config;
