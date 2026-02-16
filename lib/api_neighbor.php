@@ -1144,7 +1144,7 @@ function neighbor_get_matching_objects($rule, $rows, $page, &$total_rows) {
 		$sql_order = "ORDER by $sort_column $sort_direction";
 	}
 	
-	$sql_query = $sql_order ? neighbor_build_data_query_sql($rule) . ' ' . $sql_order : neighbor_build_data_query_sql($rule);
+	$sql_query = $sql_order ? neighbor_build_data_query_sql($rule, '', '') . ' ' . $sql_order : neighbor_build_data_query_sql($rule, '', '');
 	
 	$start_rec = $rows * ($page - 1);
 	$all_neighbor_objects = db_fetch_assoc($sql_query);
@@ -1366,10 +1366,10 @@ function neighbor_display_new_graphs($rule, $url) {
 		}
 		
 		if ($sql_order) {
-			$sql_query = neighbor_build_data_query_sql($rule) . ' ' . $sql_order;
+			$sql_query = neighbor_build_data_query_sql($rule, '', '') . ' ' . $sql_order;
 		}
 		else {
-			$sql_query = neighbor_build_data_query_sql($rule);
+			$sql_query = neighbor_build_data_query_sql($rule, '', '');
 		}
 		
 		$start_rec = $rows*(get_request_var('page')-1);
@@ -1436,7 +1436,7 @@ function neighbor_rule_to_json($rule_id) {
 	$ajax    = isset_request_var('ajax')    ? get_request_var('ajax') 		: '';
 	$format  = isset_request_var('format')  ? get_request_var('format') 	: 'json';
 	$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_rules WHERE id = ?',array($rule_id));
-	$sql_query = neighbor_build_data_query_sql($rule);
+	$sql_query = neighbor_build_data_query_sql($rule, '', '');
 		
 	$neighbor_objects = db_fetch_assoc($sql_query);
 	$json = json_encode($neighbor_objects,JSON_PRETTY_PRINT);
@@ -1462,6 +1462,9 @@ function neighbor_rule_to_json($rule_id) {
  */
 function get_neighbor_objects_by_rule($rule_id, $host_filter = '', $edge_filter = '') {
 	$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_rules WHERE id = ?', array($rule_id));
+	if (!$rule) {
+		return array();
+	}
 	$sql_query = neighbor_build_data_query_sql($rule, $host_filter, $edge_filter);
 	$results = db_fetch_assoc($sql_query);
 	return db_fetch_hash($results, array('hostname', 'neighbor_hostname', 'interface_name'));
