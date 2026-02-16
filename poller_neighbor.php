@@ -54,6 +54,7 @@ include_once('lib/ping.php');
 include_once('lib/poller.php');
 include_once('lib/data_query.php');
 include_once('plugins/neighbor/lib/neighbor_functions.php');
+include_once('plugins/neighbor/lib/neighbor_sql_tables.php');
 
 error_log("Includes done OK!");
 
@@ -236,17 +237,7 @@ function debug($message) {
 	}
 }
 
-function neighbor_host_discovery_enabled($host_row, $field) {
-	if (!is_array($host_row)) {
-		return false;
-	}
-
-	if (!array_key_exists($field, $host_row)) {
-		return true;
-	}
-
-	return !empty($host_row[$field]);
-}
+// neighbor_host_discovery_enabled() function is now in lib/neighbor_sql_tables.php
 
 function discoverHost($hostId) {
 

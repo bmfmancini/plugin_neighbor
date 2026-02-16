@@ -310,25 +310,7 @@ function neighbor_setup_table () {
 	/*
 	 * Do not auto-alter Cacti's core host table here.
 	 * On installs with wide host schemas this causes InnoDB row-size failures.
-	 * Instead, store per-host neighbor discovery settings in a separate table.
 	 */
-
-      // Create table for per-host neighbor discovery settings
-      db_execute("
-            CREATE TABLE IF NOT EXISTS `plugin_neighbor_host_settings` (
-                  `host_id` int(11) NOT NULL,
-                  `neighbor_discover_enable` char(3) NOT NULL DEFAULT 'on',
-                  `neighbor_discover_cdp` char(3) NOT NULL DEFAULT 'on',
-                  `neighbor_discover_lldp` char(3) NOT NULL DEFAULT 'on',
-                  `neighbor_discover_ip` char(3) NOT NULL DEFAULT 'on',
-                  `neighbor_discover_switching` char(3) NOT NULL DEFAULT 'on',
-                  `neighbor_discover_ifalias` char(3) NOT NULL DEFAULT 'on',
-                  `neighbor_discover_ospf` char(3) NOT NULL DEFAULT 'on',
-                  `neighbor_discover_bgp` char(3) NOT NULL DEFAULT 'on',
-                  `neighbor_discover_isis` char(3) NOT NULL DEFAULT 'on',
-                  PRIMARY KEY (`host_id`)
-            ) COMMENT='Per-host Neighbor Discovery Settings';
-      ");
 
       if (!db_fetch_cell("SHOW COLUMNS FROM plugin_neighbor_rules LIKE 'neighbor_type'")) {
             api_plugin_db_add_column('neighbor', 'plugin_neighbor_rules', array('name' => 'neighbor_type', 'type' => 'varchar(64)', 'NULL' => false, 'default' => 'interface', 'after' => 'description'));
@@ -338,30 +320,370 @@ function neighbor_setup_table () {
             api_plugin_db_add_column('neighbor', 'plugin_neighbor_rules', array('name' => 'neighbor_options', 'type' => 'varchar(255)', 'NULL' => true, 'default' => '', 'after' => 'neighbor_type'));
       }
 
+      // Create plugin_neighbor_host table for per-host settings
+      neighbor_setup_host_table();
+
+      // Migrate data from host table if needed
+      neighbor_migrate_host_settings();
+}
+
+function neighbor_setup_host_table() {
+	$data              = [];
+	$data['columns'][] = [
+		'name'           => 'id',
+		'type'           => 'int(11)',
+		'unsigned'       => true,
+		'NULL'           => false,
+		'auto_increment' => true
+	];
+	$data['columns'][] = [
+		'name'     => 'host_id',
+		'type'     => 'int(11)',
+		'unsigned' => true,
+		'NULL'     => false,
+		'default'  => '0'
+	];
+	$data['columns'][] = [
+		'name'    => 'enabled',
+		'type'    => 'char(3)',
+		'NULL'    => false,
+		'default' => 'on'
+	];
+	$data['columns'][] = [
+		'name'    => 'discover_cdp',
+		'type'    => 'char(3)',
+		'NULL'    => false,
+		'default' => 'on'
+	];
+	$data['columns'][] = [
+		'name'    => 'discover_lldp',
+		'type'    => 'char(3)',
+		'NULL'    => false,
+		'default' => 'on'
+	];
+	$data['columns'][] = [
+		'name'    => 'discover_ip',
+		'type'    => 'char(3)',
+		'NULL'    => false,
+		'default' => 'on'
+	];
+	$data['columns'][] = [
+		'name'    => 'discover_switching',
+		'type'    => 'char(3)',
+		'NULL'    => false,
+		'default' => 'on'
+	];
+	$data['columns'][] = [
+		'name'    => 'discover_ifalias',
+		'type'    => 'char(3)',
+		'NULL'    => false,
+		'default' => 'on'
+	];
+	$data['columns'][] = [
+		'name'    => 'discover_ospf',
+		'type'    => 'char(3)',
+		'NULL'    => false,
+		'default' => 'on'
+	];
+	$data['columns'][] = [
+		'name'    => 'discover_bgp',
+		'type'    => 'char(3)',
+		'NULL'    => false,
+		'default' => 'on'
+	];
+	$data['columns'][] = [
+		'name'    => 'discover_isis',
+		'type'    => 'char(3)',
+		'NULL'    => false,
+		'default' => 'on'
+	];
+	$data['columns'][] = [
+		'name'    => 'last_discovered',
+		'type'    => 'timestamp',
+		'NULL'    => true,
+		'default' => null
+	];
+	$data['columns'][] = [
+		'name'    => 'discovery_status',
+		'type'    => 'varchar(64)',
+		'NULL'    => false,
+		'default' => ''
+	];
+
+	$data['primary']       = 'id';
+	$data['keys'][]        = ['name' => 'host_id', 'columns' => 'host_id'];
+	$data['keys'][]        = ['name' => 'enabled', 'columns' => 'enabled'];
+	$data['unique_keys'][] = ['name' => 'host_id_unique', 'columns' => 'host_id'];
+	$data['type']          = 'InnoDB';
+	$data['comment']       = 'Per-host Neighbor Discovery Settings';
+
+	api_plugin_db_table_create('neighbor', 'plugin_neighbor_host', $data);
+}
+
+function neighbor_migrate_host_settings() {
+	// Check if we need to migrate data from host table to plugin_neighbor_host table
+	$old_fields = array(
+		'neighbor_discover_enable',
+		'neighbor_discover_cdp',
+		'neighbor_discover_lldp',
+		'neighbor_discover_ip',
+		'neighbor_discover_switching',
+		'neighbor_discover_ifalias',
+		'neighbor_discover_ospf',
+		'neighbor_discover_bgp',
+		'neighbor_discover_isis',
+	);
+
+	// Check if the old columns still exist in the host table
+	$has_old_columns = db_fetch_cell("SHOW COLUMNS FROM host LIKE 'neighbor_discover_enable'");
+
+	if ($has_old_columns) {
+		// Migrate data from host table to plugin_neighbor_host table
+		$hosts = db_fetch_assoc("SELECT id,
+			neighbor_discover_enable,
+			neighbor_discover_cdp,
+			neighbor_discover_lldp,
+			neighbor_discover_ip,
+			neighbor_discover_switching,
+			neighbor_discover_ifalias,
+			neighbor_discover_ospf,
+			neighbor_discover_bgp,
+			neighbor_discover_isis
+			FROM host
+			WHERE id > 0");
+
+		if (cacti_sizeof($hosts)) {
+			foreach ($hosts as $host) {
+				// Check if this host already exists in plugin_neighbor_host
+				$exists = db_fetch_cell_prepared('SELECT id FROM plugin_neighbor_host WHERE host_id = ?', array($host['id']));
+
+				if (!$exists) {
+					// Insert the host settings
+					db_execute_prepared('INSERT INTO plugin_neighbor_host
+						(host_id, enabled, discover_cdp, discover_lldp, discover_ip,
+						discover_switching, discover_ifalias, discover_ospf, discover_bgp, discover_isis)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+						array(
+							$host['id'],
+							$host['neighbor_discover_enable'],
+							$host['neighbor_discover_cdp'],
+							$host['neighbor_discover_lldp'],
+							$host['neighbor_discover_ip'],
+							$host['neighbor_discover_switching'],
+							$host['neighbor_discover_ifalias'],
+							$host['neighbor_discover_ospf'],
+							$host['neighbor_discover_bgp'],
+							$host['neighbor_discover_isis']
+						)
+					);
+				}
+			}
+
+			cacti_log('NEIGHBOR: Migrated ' . cacti_sizeof($hosts) . ' host settings to plugin_neighbor_host table', false, 'SYSTEM');
+		}
+
+		// Drop the old columns from the host table
+		// NOTE: Only do this after verifying migration was successful
+		// We'll keep the columns for now for backward compatibility
+		// In a future version, we can add code to remove them
+	}
 }
 
 function add_fields_host() {
+	// Legacy function - kept for backward compatibility
+	// New installations will use plugin_neighbor_host table instead
+	// This will only run on upgrades from older versions
 
 	$fields = array(
-                        'neighbor_discover_enable',
-                        'neighbor_discover_cdp',
-                        'neighbor_discover_lldp',
-                        'neighbor_discover_ip',
-                        'neighbor_discover_switching',
-                        'neighbor_discover_ifalias',
-                        'neighbor_discover_ospf',
-                        'neighbor_discover_bgp',
-                        'neighbor_discover_isis',
-       );
-        $last = 'disabled';
-        foreach ($fields as $field) {
-                api_plugin_db_add_column ('neighbor', 'host', array('name' => $field, 'type' => 'char(3)', 'NULL' => false, 'default' => 'on', 'after' => $last));
-                $last = $field;
-        }
+		'neighbor_discover_enable',
+		'neighbor_discover_cdp',
+		'neighbor_discover_lldp',
+		'neighbor_discover_ip',
+		'neighbor_discover_switching',
+		'neighbor_discover_ifalias',
+		'neighbor_discover_ospf',
+		'neighbor_discover_bgp',
+		'neighbor_discover_isis',
+	);
+
+	$last = 'disabled';
+	foreach ($fields as $field) {
+		// Only add if column doesn't exist
+		if (!db_fetch_cell("SHOW COLUMNS FROM host LIKE '$field'")) {
+			api_plugin_db_add_column('neighbor', 'host', array(
+				'name'    => $field,
+				'type'    => 'char(3)',
+				'NULL'    => false,
+				'default' => 'on',
+				'after'   => $last
+			));
+		}
+		$last = $field;
+	}
 }
 
+/**
+ * Get neighbor discovery settings for a host
+ * 
+ * @param int $host_id The host ID
+ * @return array Host settings or default settings if not found
+ */
+function neighbor_get_host_settings($host_id) {
+	$settings = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_host WHERE host_id = ?', array($host_id));
+	
+	if (!$settings) {
+		// Return default settings if host not found
+		$settings = array(
+			'host_id'            => $host_id,
+			'enabled'            => 'on',
+			'discover_cdp'       => 'on',
+			'discover_lldp'      => 'on',
+			'discover_ip'        => 'on',
+			'discover_switching' => 'on',
+			'discover_ifalias'   => 'on',
+			'discover_ospf'      => 'on',
+			'discover_bgp'       => 'on',
+			'discover_isis'      => 'on',
+		);
+	}
+	
+	return $settings;
+}
 
+/**
+ * Save neighbor discovery settings for a host
+ * 
+ * @param int $host_id The host ID
+ * @param array $settings Array of settings to save
+ * @return bool Success status
+ */
+function neighbor_save_host_settings($host_id, $settings) {
+	$exists = db_fetch_cell_prepared('SELECT id FROM plugin_neighbor_host WHERE host_id = ?', array($host_id));
+	
+	$columns = array(
+		'enabled', 'discover_cdp', 'discover_lldp', 'discover_ip',
+		'discover_switching', 'discover_ifalias', 'discover_ospf',
+		'discover_bgp', 'discover_isis'
+	);
+	
+	if ($exists) {
+		// Update existing record
+		$sql_parts = array();
+		$params = array();
+		
+		foreach ($columns as $column) {
+			if (isset($settings[$column])) {
+				$sql_parts[] = "$column = ?";
+				$params[] = $settings[$column];
+			}
+		}
+		
+		if (count($sql_parts) > 0) {
+			$params[] = $host_id;
+			$sql = 'UPDATE plugin_neighbor_host SET ' . implode(', ', $sql_parts) . ' WHERE host_id = ?';
+			return db_execute_prepared($sql, $params);
+		}
+	} else {
+		// Insert new record
+		$insert_columns = array('host_id');
+		$insert_values = array('?');
+		$params = array($host_id);
+		
+		foreach ($columns as $column) {
+			if (isset($settings[$column])) {
+				$insert_columns[] = $column;
+				$insert_values[] = '?';
+				$params[] = $settings[$column];
+			}
+		}
+		
+		$sql = 'INSERT INTO plugin_neighbor_host (' . implode(', ', $insert_columns) . ') VALUES (' . implode(', ', $insert_values) . ')';
+		return db_execute_prepared($sql, $params);
+	}
+	
+	return false;
+}
 
+/**
+ * Check if a specific discovery type is enabled for a host
+ * Provides backward compatibility with old host table columns
+ * 
+ * @param mixed $host Host array or host ID
+ * @param string $field Field name (e.g., 'discover_cdp', 'enabled')
+ * @return bool True if enabled, false otherwise
+ */
+function neighbor_host_discovery_enabled($host, $field) {
+	// If host is an array with the old column names from host table
+	if (is_array($host)) {
+		$host_id = isset($host['id']) ? $host['id'] : 0;
+		
+		// Check for old-style field names (neighbor_discover_*)
+		$old_field = 'neighbor_' . $field;
+		if (array_key_exists($old_field, $host)) {
+			return !empty($host[$old_field]) && $host[$old_field] != 'off';
+		}
+		
+		// Check for new-style field names
+		if (array_key_exists($field, $host)) {
+			return !empty($host[$field]) && $host[$field] != 'off';
+		}
+	} else {
+		$host_id = $host;
+	}
+	
+	// Fetch from new table
+	if ($host_id > 0) {
+		$settings = neighbor_get_host_settings($host_id);
+		if (isset($settings[$field])) {
+			return $settings[$field] == 'on';
+		}
+	}
+	
+	// Default to enabled if not found
+	return true;
+}
 
+/**
+ * Update last discovered timestamp for a host
+ * 
+ * @param int $host_id The host ID
+ * @param string $status Optional status message
+ * @return bool Success status
+ */
+function neighbor_update_host_discovery_status($host_id, $status = '') {
+	$exists = db_fetch_cell_prepared('SELECT id FROM plugin_neighbor_host WHERE host_id = ?', array($host_id));
+	
+	if ($exists) {
+		return db_execute_prepared(
+			'UPDATE plugin_neighbor_host SET last_discovered = NOW(), discovery_status = ? WHERE host_id = ?',
+			array($status, $host_id)
+		);
+	} else {
+		// Create entry with defaults if it doesn't exist
+		return db_execute_prepared(
+			'INSERT INTO plugin_neighbor_host (host_id, last_discovered, discovery_status) VALUES (?, NOW(), ?)',
+			array($host_id, $status)
+		);
+	}
+}
+
+/**
+ * Get all hosts with neighbor discovery enabled
+ * 
+ * @return array Array of host IDs with neighbor discovery enabled
+ */
+function neighbor_get_enabled_hosts() {
+	return db_fetch_assoc("SELECT host_id FROM plugin_neighbor_host WHERE enabled = 'on'");
+}
+
+/**
+ * Remove host settings when a host is deleted
+ * 
+ * @param int $host_id The host ID to remove
+ * @return bool Success status
+ */
+function neighbor_delete_host_settings($host_id) {
+	return db_execute_prepared('DELETE FROM plugin_neighbor_host WHERE host_id = ?', array($host_id));
+}
 
 ?>
