@@ -259,7 +259,7 @@ function discoverHost($hostId) {
 		
 		/* set a process lock */
 		debug("Adding process tracking for Key:$key\n");
-		db_execute_prepared('REPLACE INTO plugin_neighbor__processes (pid, taskid, host_id) VALUES (?,?,?)',array($key,0,$hostId));
+		db_execute_prepared('REPLACE INTO plugin_neighbor_processes (pid, taskid, host_id) VALUES (?,?,?)',array($key,0,$hostId));
 		debug("Checking for CDP...");	
 		if (read_config_option('neighbor_global_discover_cdp') && neighbor_host_discovery_enabled($hostRec[0], 'neighbor_discover_cdp')) {
 		    debug("Discovering CDP neighbors.");
@@ -276,7 +276,7 @@ function discoverHost($hostId) {
 		
 		//$statsJson = json_encode($stats);
 		/* remove the process lock */
-		db_execute_prepared('DELETE FROM plugin_neighbor__processes WHERE pid=?', array($key));
+		db_execute_prepared('DELETE FROM plugin_neighbor_processes WHERE pid=?', array($key));
 		//db_execute('INSERT INTO plugin__neighbor__stats ()');
 		db_execute("REPLACE INTO settings (name,value) VALUES ('plugin_neighbor_last_run', '" . time() . "')");
 		return true;
@@ -402,7 +402,7 @@ function discoverCdpNeighbors($host) {
 		$recordHash = md5(serialize($hashArray));												// This should be unique to each CDP entry
 		$neighHash = md5(serialize($neighArray));												// This should allow us to pair neighbors together
 		
-		if (db_execute_prepared("REPLACE  INTO `plugin_neighbor__xdp` 
+		if (db_execute_prepared("REPLACE  INTO `plugin_neighbor_xdp` 
 				       (`host_id`, `type`,`host_ip`, `hostname`, `snmp_id`, 
 					`interface_name`, `interface_alias`, `interface_speed`, `interface_status`, `interface_ip`, `interface_hwaddr`, 
 					`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`, 
@@ -538,7 +538,7 @@ function discoverLldpNeighbors($host) {
 		
 		$recordHash = md5(serialize($hashArray));												// This should be unique to each CDP entry
 		$neighHash = md5(serialize($neighArray));												// This should allow us to pair neighbors together
-		if (db_execute_prepared("REPLACE  INTO `plugin_neighbor__xdp` 
+		if (db_execute_prepared("REPLACE  INTO `plugin_neighbor_xdp` 
 				       (`host_id`, `type`,`host_ip`, `hostname`, `snmp_id`, 
 					`interface_name`, `interface_alias`, `interface_speed`, `interface_status`, `interface_ip`, `interface_hwaddr`, 
 					`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`, 
@@ -635,7 +635,7 @@ function discoverIpNeighbors($host) {
 		debug("ipSubnet: $ipSubnet, VRF: $vrf");
 		if ($ipSubnet == '255.255.255.255') { continue;} 					// No loopbacks
 		
-		db_execute_prepared("REPLACE  INTO `plugin_neighbor__ipv4_cache` 
+		db_execute_prepared("REPLACE  INTO `plugin_neighbor_ipv4_cache` 
 								(`host_id`, `hostname`,`snmp_id`,`ip_address`,`ip_netmask`,`vrf`,`last_seen`)
 								VALUES (?,?,?,?,?,?,NOW())",
 								array($myHostId, $myHostname,$snmpId, $ipAddress, $ipSubnet, $vrf)
@@ -742,8 +742,8 @@ function discoverIpNeighbors($host) {
 			$recordHash = md5(serialize($hashArray));												// This should be unique to each CDP entry
 			$neighHash = md5(serialize($neighArray));												// This should allow us to pair neighbors together				
 		
-			db_execute_prepared("DELETE from plugin_neighbor__ipv4 where last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)",array($pollerDeadtimer));
-			if (db_execute_prepared("REPLACE  INTO `plugin_neighbor__ipv4` 
+			db_execute_prepared("DELETE from plugin_neighbor_ipv4 where last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)",array($pollerDeadtimer));
+			if (db_execute_prepared("REPLACE  INTO `plugin_neighbor_ipv4` 
 				    (`type`,`vrf`,`host_id`, `hostname`, `snmp_id`, 
 					`interface_name`, `interface_alias`, `interface_ip`, `interface_netmask`,`interface_hwaddr`, 
 					`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`, 
@@ -785,12 +785,12 @@ function ipSubnetCheck ($ip1,$net1,$ip2,$net2) {
 function getIpv4Cache($hostId = null) {
 	
 	if ($hostId) {
-		$query = db_fetch_assoc_prepared("SELECT * from plugin_neighbor__ipv4_cache where host_id=?",array($hostId));
+		$query = db_fetch_assoc_prepared("SELECT * from plugin_neighbor_ipv4_cache where host_id=?",array($hostId));
 		$result = db_fetch_hash($query,array('vrf','ip_address'));
 		return ($result);
 	}
 	else { 
-		$query = db_fetch_assoc("SELECT * from plugin_neighbor__ipv4_cache");
+		$query = db_fetch_assoc("SELECT * from plugin_neighbor_ipv4_cache");
 		$result = db_fetch_hash($query,array('vrf','ip_address'));
 		return ($result);
 	}
@@ -953,9 +953,9 @@ function processHosts() {
 	/* Set the booleans based upon current times */
 	
 	/* Purge collectors that run longer than 10 minutes */
-	db_execute('DELETE FROM plugin_neighbor__processes WHERE (UNIX_TIMESTAMP() - UNIX_TIMESTAMP(started)) > 600');
+	db_execute('DELETE FROM plugin_neighbor_processes WHERE (UNIX_TIMESTAMP() - UNIX_TIMESTAMP(started)) > 600');
 	/* Do not process collectors are still running */
-	$processes = db_fetch_cell('SELECT count(*) as num_proc FROM plugin_neighbor__processes');
+	$processes = db_fetch_cell('SELECT count(*) as num_proc FROM plugin_neighbor_processes');
 	if ($processes) {
 		echo "WARNING: Another neighbor process is still running!  Exiting...\n";
 		exit(0);
@@ -971,7 +971,7 @@ function processHosts() {
 				AND host.status!=1");
 
 	/* Remove entries for disabled hosts */
-	db_execute("DELETE FROM plugin_neighbor__xdp WHERE host_id IN (SELECT id FROM host WHERE disabled='on')");
+	db_execute("DELETE FROM plugin_neighbor_xdp WHERE host_id IN (SELECT id FROM host WHERE disabled='on')");
 
 	// db_execute("DELETE FROM plugin_neighbor_ip WHERE host_id IN (SELECT id FROM host WHERE disabled='on')");
 	// db_execute("DELETE FROM plugin_neighbor_alias WHERE host_id IN (SELECT id FROM host WHERE disabled='on')");
@@ -983,12 +983,12 @@ function processHosts() {
 	if (sizeof($hosts)) {
 		foreach ($hosts as $host) {
 			while ($dieNow == 0) {
-				$processes = db_fetch_cell('SELECT COUNT(*) as num_proc FROM plugin_neighbor__processes');
+				$processes = db_fetch_cell('SELECT COUNT(*) as num_proc FROM plugin_neighbor_processes');
 				debug("Found $processes of $concurrentProcesses\n");
 				if ($processes < $concurrentProcesses) {
 					/* put a placeholder in place to prevent overloads on slow systems */
 					$key = rand();
-					db_execute_prepared("INSERT INTO plugin_neighbor__processes (pid, taskid, started,host_id) VALUES (?,?, NOW(),?)",array($key, $seed,$host['host_id']));
+					db_execute_prepared("INSERT INTO plugin_neighbor_processes (pid, taskid, started,host_id) VALUES (?,?, NOW(),?)",array($key, $seed,$host['host_id']));
 					debug("INFO: Launching Host Collector For: '" . $host['description'] . '[' . $host['hostname'] . "]'\n");
 					processHost($host['host_id'], $seed, $key);
 					usleep(10000);
@@ -1004,7 +1004,7 @@ function processHosts() {
 	echo "INFO: All Hosts Launched, proceeding to wait for completion\n";
 	/* wait for all processes to end or max run time */
 	while ($dieNow == 0) {
-		$processesLeft 	= db_fetch_cell_prepared("SELECT count(*) as num_proc FROM plugin_neighbor__processes WHERE taskid=?",array($seed));
+		$processesLeft 	= db_fetch_cell_prepared("SELECT count(*) as num_proc FROM plugin_neighbor_processes WHERE taskid=?",array($seed));
 		if ($processesLeft == 0) {
 			echo "INFO: All Processees Complete, Exiting\n";
 			break;
@@ -1078,7 +1078,7 @@ function displayHelp() {
 function exitCleanly() {
 
 	print "Cleaning processes table...";
-	if (db_execute("DELETE FROM plugin_neighbor__processes")) {
+	if (db_execute("DELETE FROM plugin_neighbor_processes")) {
 		print "[OK]\n";	
 	}
 	else { 

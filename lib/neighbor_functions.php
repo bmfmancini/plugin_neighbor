@@ -110,8 +110,8 @@ function getXdpNeighbors(&$total_rows = 0, $rowStart = 1, $rowEnd = 25, $xdpType
 		}
 		
     $sqlWhere = count($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
-    $result = db_fetch_assoc_prepared("select * from plugin_neighbor__xdp xdp $sqlWhere $sqlOrder $sqlLimit", $params);
-    $total_rows = db_fetch_cell_prepared("select count(*) as total_rows from plugin_neighbor__xdp xdp $sqlWhere",$params);
+    $result = db_fetch_assoc_prepared("select * from plugin_neighbor_xdp xdp $sqlWhere $sqlOrder $sqlLimit", $params);
+    $total_rows = db_fetch_cell_prepared("select count(*) as total_rows from plugin_neighbor_xdp xdp $sqlWhere",$params);
     //print "Set total_rows = $total_rows<br>";
     if ($output == 'array') 	{ return($result);}
     elseif ($output == 'json') 	{ return(json_encode($result));}
@@ -120,9 +120,9 @@ function getXdpNeighbors(&$total_rows = 0, $rowStart = 1, $rowEnd = 25, $xdpType
 
 function getXdpNeighborStats(&$total_rows = 0) {
     
-    $numHosts = db_fetch_cell("select count(distinct host_id) from plugin_neighbor__xdp");
-    $numInterfaces = db_fetch_cell("select count(distinct concat(host_id,':',snmp_id)) from plugin_neighbor__xdp;");
-    $lastPolled = db_fetch_cell("select last_seen from plugin_neighbor__xdp order by last_seen desc limit 1");
+    $numHosts = db_fetch_cell("select count(distinct host_id) from plugin_neighbor_xdp");
+    $numInterfaces = db_fetch_cell("select count(distinct concat(host_id,':',snmp_id)) from plugin_neighbor_xdp;");
+    $lastPolled = db_fetch_cell("select last_seen from plugin_neighbor_xdp order by last_seen desc limit 1");
     
     if ($numHosts || $numInterfaces) { $total_rows++;}
     
@@ -369,8 +369,8 @@ function get_neighbor_rules(&$total_rows = 0, $rowStart = 1, $rowEnd = 25, $filt
 	if ($filterVal != '')										{ array_push($conditions,"`name` like ?"); array_push($params, $filterVal); }
 		
     $sqlWhere = count($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
-    $result = db_fetch_assoc_prepared("select * from plugin_neighbor__rules rules $sqlWhere $sqlOrder $sqlLimit", $params);
-    $total_rows = db_fetch_cell_prepared("select count(*) as total_rows from plugin_neighbor__rules rules $sqlWhere",$params);
+    $result = db_fetch_assoc_prepared("select * from plugin_neighbor_rules rules $sqlWhere $sqlOrder $sqlLimit", $params);
+    $total_rows = db_fetch_cell_prepared("select count(*) as total_rows from plugin_neighbor_rules rules $sqlWhere",$params);
     //print "Set total_rows = $total_rows<br>";
     if ($output == 'array') 	{ return($result);}
     elseif ($output == 'json') 	{ return(json_encode($result));}
@@ -776,24 +776,30 @@ function neighbor_get_allowed_devices($sql_where = '', $order_by = 'description'
 // Get the VRF maps for all vrf rules defined
 function get_neighbor_vrf_maps() {
 	
+	// Initialize mapping array BEFORE the loop to preserve all rules' mappings
+	$mapping = [];
+	
 	$rules = get_vrf_rules();
 	foreach ($rules as $rule) {
 		
 		$rule_id 		= isset($rule['id']) ? $rule['id'] : 0;
 		$rule_name	= isset($rule['name']) ? $rule['name'] : "";
 		$vrf 				= isset($rule['vrf']) ? $rule['vrf'] : "";
-		// Mapping will be an associative array indexed on $mapping[host_id][ip_address] = record
-		$mapping = [];
+		
 		if ($rule_id) {
 			
 				$sql_query = neighbor_build_vrf_data_query_sql($rule);
 				$result = db_fetch_assoc($sql_query);
-				$result_vrf = [];
-				// Merge the VRF name into the results
-				foreach ($result as $result) { $result['vrf'] = $vrf; $result_vrf[] = $result;}
-				$hash = db_fetch_hash($result_vrf,array("host_id","ip_address"));
-				$mapping = array_replace($mapping,$hash);				
-				//cacti_log("get_neighbor_vrf_maps(): Rule '$rule_name'=".pre_print_r($mapping,"VRF:",false),false, 'NEIGHBOR TRACE');
+				
+				// Check if result is valid before processing
+				if (is_array($result) && count($result) > 0) {
+					$result_vrf = [];
+					// Merge the VRF name into the results
+					foreach ($result as $result) { $result['vrf'] = $vrf; $result_vrf[] = $result;}
+					$hash = db_fetch_hash($result_vrf,array("host_id","ip_address"));
+					$mapping = array_replace($mapping,$hash);				
+					//cacti_log("get_neighbor_vrf_maps(): Rule '$rule_name'=".pre_print_r($mapping,"VRF:",false),false, 'NEIGHBOR TRACE');
+				}
 		}
 		
 	}
@@ -802,7 +808,7 @@ function get_neighbor_vrf_maps() {
 
 // Get a list of the vrf rules
 function get_vrf_rules() {
-	$rules = db_fetch_assoc("SELECT * from plugin_neighbor__vrf_rules");
+	$rules = db_fetch_assoc("SELECT * from plugin_neighbor_vrf_rules");
 	return($rules);
 }
 
@@ -818,9 +824,9 @@ function neighbor_build_vrf_data_query_sql($rule,$host_filter = '',$edge_filter=
 	$sql_query = 'SELECT h.description AS automation_host, h.disabled, h.status ';
 	$neighbor_options = isset($rule['neighbor_options']) ? explode(",",$rule['neighbor_options']) : array();
 		
-	$tables = array("plugin_neighbor__ipv4_cache as cache");
-	$table_join = array("LEFT JOIN plugin_neighbor__ipv4_cache cache ON cache.host_id=h.id");
-	$cols = db_get_table_column_types("plugin_neighbor__ipv4_cache");
+	$tables = array("plugin_neighbor_ipv4_cache as cache");
+	$table_join = array("LEFT JOIN plugin_neighbor_ipv4_cache cache ON cache.host_id=h.id");
+	$cols = db_get_table_column_types("plugin_neighbor_ipv4_cache");
 	foreach ($cols as $col => $rec) {
 		$sql_query .= ", cache.$col";
 	}
@@ -857,7 +863,7 @@ function neighbor_build_vrf_object_rule_item_filter($rule_id, $prefix = '') {
 	
 	if ($rule_id) {
 		
-		$object_rule_items = db_fetch_assoc_prepared("SELECT * from plugin_neighbor__vrf_rule_items where rule_id=?",array($rule_id));
+		$object_rule_items = db_fetch_assoc_prepared("SELECT * from plugin_neighbor_vrf_rule_items where rule_id=?",array($rule_id));
 	
 		if (count((array) $object_rule_items)) {
 			$sql_filter = ' ';
@@ -902,7 +908,7 @@ function neighbor_build_vrf_matching_objects_filter($rule_id, $rule_type) {
 	 *  'Matching Device' match
 	 */
 	$rule_items = db_fetch_assoc_prepared('SELECT *
-		FROM plugin_neighbor__vrf_match_rule_items
+		FROM plugin_neighbor_vrf_match_rule_items
 		WHERE rule_id = ?
 		AND rule_type = ?
 		ORDER BY sequence',

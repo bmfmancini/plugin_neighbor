@@ -118,7 +118,7 @@ function save_rule() {
 		error_log("save_rule(): SAVE is=".print_r($save,1));
 		if (!is_error_message()) {
 			error_log("SQL Saving..");
-			$rule_id = sql_save($save, 'plugin_neighbor__rules');
+			$rule_id = sql_save($save, 'plugin_neighbor_rules');
 			if ($rule_id) 	{ raise_message(1); }
 			else 			{ raise_message(2); }
 		}
@@ -176,7 +176,7 @@ function save_rule() {
 		$save['pattern']   = form_input_validate((isset_request_var('pattern') ? get_nfilter_request_var('pattern') : ''), 'pattern', '', true, 3);
 
 		if (!is_error_message()) {
-			$item_id = sql_save($save, 'plugin_neighbor__match_rule_items');
+			$item_id = sql_save($save, 'plugin_neighbor_match_rule_items');
 
 			if ($item_id) {
 				raise_message(1);
@@ -213,8 +213,8 @@ function neighbor_rules_form_actions() {
 
 		if ($selected_items != false) {
 			if (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_GRAPH_DELETE) { /* delete */
-				db_execute('DELETE FROM plugin_neighbor__rules WHERE ' . array_to_sql_or($selected_items, 'id'));
-				db_execute('DELETE FROM plugin_neighbor__plugin__rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
+				db_execute('DELETE FROM plugin_neighbor_rules WHERE ' . array_to_sql_or($selected_items, 'id'));
+				db_execute('DELETE FROM plugin_neighbor_plugin_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
 				db_execute('DELETE FROM plugin_network__match_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
 			} elseif (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_GRAPH_DUPLICATE) { /* duplicate */
 				for ($i=0;($i<count($selected_items));$i++) {
@@ -256,7 +256,7 @@ function neighbor_rules_form_actions() {
 			input_validate_input_number($matches[1]);
 			/* ==================================================== */
 
-			$neighbor_rules_list .= '<li>' . db_fetch_cell_prepared('SELECT name FROM plugin_neighbor__rules WHERE id = ?', array($matches[1])) . '</li>';
+			$neighbor_rules_list .= '<li>' . db_fetch_cell_prepared('SELECT name FROM plugin_neighbor_rules WHERE id = ?', array($matches[1])) . '</li>';
 			$neighbor_rules_array[] = $matches[1];
 		}
 	}
@@ -333,7 +333,7 @@ function neighbor_rules_item_movedown() {
 	/* ==================================================== */
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		move_item_down('plugin_neighbor__match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_down('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
 		move_item_down('neighbor_plugin__rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
@@ -347,7 +347,7 @@ function neighbor_rules_item_moveup() {
 	/* ==================================================== */
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		move_item_up('plugin_neighbor__match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_up('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
 		move_item_up('neighbor_plugin__rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
@@ -360,9 +360,9 @@ function neighbor_rules_item_remove() {
 	/* ==================================================== */
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		db_execute_prepared('DELETE FROM plugin_neighbor__match_rule_items WHERE id = ?', array(get_request_var('item_id')));
+		db_execute_prepared('DELETE FROM plugin_neighbor_match_rule_items WHERE id = ?', array(get_request_var('item_id')));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
-		db_execute_prepared('DELETE FROM plugin_neighbor__graph_rule_items WHERE id = ?', array(get_request_var('item_id')));
+		db_execute_prepared('DELETE FROM plugin_neighbor_graph_rule_items WHERE id = ?', array(get_request_var('item_id')));
 	}
 
 }
@@ -433,7 +433,7 @@ function neighbor_rules_remove() {
 
 	if ((read_config_option('deletion_verification') == 'on') && (!isset_request_var('confirm'))) {
 		top_header();
-		form_confirm(__('Are You Sure?'), __("Are you sure you want to delete the Rule '%s'?", db_fetch_cell_prepared('SELECT name FROM plugin_neighbor__rules WHERE id = ?', array(get_request_var('id')))), 'neighbor_rules.php', 'neighbor_rules.php?action=remove&id=' . get_request_var('id'));
+		form_confirm(__('Are You Sure?'), __("Are you sure you want to delete the Rule '%s'?", db_fetch_cell_prepared('SELECT name FROM plugin_neighbor_rules WHERE id = ?', array(get_request_var('id')))), 'neighbor_rules.php', 'neighbor_rules.php?action=remove&id=' . get_request_var('id'));
 		bottom_footer();
 		exit;
 	}
@@ -444,11 +444,11 @@ function neighbor_rules_remove() {
 			AND rule_type = ?',
 			array(get_request_var('id'), AUTOMATION_RULE_TYPE_GRAPH_MATCH));
 
-		db_execute_prepared('DELETE FROM plugin_neighbor__plugin__rule_items
+		db_execute_prepared('DELETE FROM plugin_neighbor_plugin_rule_items
 			WHERE rule_id = ?',
 			array(get_request_var('id')));
 
-		db_execute_prepared('DELETE FROM plugin_neighbor__rules
+		db_execute_prepared('DELETE FROM plugin_neighbor_rules
 			WHERE id = ?',
 			array(get_request_var('id')));
 	}
@@ -461,7 +461,7 @@ function neighbor_change_query_type() {
 		$snmp_query_id = get_filter_request_var('snmp_query_id');
 		$name = get_nfilter_request_var('name');
 
-		db_execute_prepared('UPDATE plugin_neighbor__rules
+		db_execute_prepared('UPDATE plugin_neighbor_rules
 			SET snmp_query_id = ?, name = ?
 			WHERE id = ?',
 			array($snmp_query_id, $name, $id));
@@ -471,7 +471,7 @@ function neighbor_change_query_type() {
 		$name = get_nfilter_request_var('name');
 		$neighbor_type = get_nfilter_request_var('neighbor_type');
 		$neighbor_options = get_nfilter_request_var('neighbor_options');
-		db_execute_prepared('UPDATE plugin_neighbor__rules
+		db_execute_prepared('UPDATE plugin_neighbor_rules
 			SET neighbor_type = ?, name = ?, neighbor_options = ?
 			WHERE id = ?',
 			array($neighbor_type, $name, $neighbor_options, $id));
@@ -481,7 +481,7 @@ function neighbor_change_query_type() {
 		$name = get_nfilter_request_var('name');
 		$neighbor_type = get_nfilter_request_var('neighbor_type');
 		$neighbor_options = get_nfilter_request_var('neighbor_options');
-		db_execute_prepared('UPDATE plugin_neighbor__rules
+		db_execute_prepared('UPDATE plugin_neighbor_rules
 			SET neighbor_type = ?, name = ?, neighbor_options = ?
 			WHERE id = ?',
 			array($neighbor_type, $name, $neighbor_options, $id));
@@ -542,7 +542,7 @@ function neighbor_rules_edit() {
 	 */
 	$rule = array();
 	if (!isempty_request_var('id')) {
-		$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__rules where id = ?', array(get_request_var('id')));
+		$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_rules where id = ?', array(get_request_var('id')));
 
 		if (!isempty_request_var('graph_type_id')) {
 			$rule['graph_type_id'] = get_request_var('graph_type_id'); # set query_type for display
@@ -617,7 +617,7 @@ function neighbor_rules_edit() {
 		html_start_box($header_label, '100%', true, '3', 'center', '');
 
 		if (!isempty_request_var('id')) {
-			$neighbor_type = db_fetch_cell_prepared("SELECT neighbor_type from plugin_neighbor__rules where id =?", array(get_request_var('id')));
+			$neighbor_type = db_fetch_cell_prepared("SELECT neighbor_type from plugin_neighbor_rules where id =?", array(get_request_var('id')));
 			
 			if ($neighbor_type == 'routing') {
 					$fields_neighbor_graph_rules_edit2['neighbor_options'] = array(

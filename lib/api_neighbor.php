@@ -3,7 +3,7 @@
 function neighbor_display_graph_rule_items($title, $rule_id, $rule_type, $module) {
 	
 	global $automation_op_array, $automation_oper, $automation_tree_header_types;
-	$items = db_fetch_assoc_prepared('SELECT * FROM plugin_neighbor__graph_rule_items WHERE rule_id = ? ORDER BY sequence', array($rule_id));
+	$items = db_fetch_assoc_prepared('SELECT * FROM plugin_neighbor_graph_rule_items WHERE rule_id = ? ORDER BY sequence', array($rule_id));
 	html_start_box($title, '100%', '', '3', 'center', $module . '?action=item_edit&id=' . $rule_id . '&rule_type=' . $rule_type);
 
 	$display_text = array(
@@ -64,7 +64,7 @@ function neighbor_display_graph_rule_items($title, $rule_id, $rule_type, $module
 function neighbor_display_tree_rule_items($title, $rule_id, $item_type, $rule_type, $module) {
 	
 	global $automation_tree_header_types, $tree_sort_types, $host_group_types;
-	$items = db_fetch_assoc_prepared('SELECT * FROM plugin_neighbor__tree_rule_items WHERE rule_id = ? ORDER BY sequence', array($rule_id));
+	$items = db_fetch_assoc_prepared('SELECT * FROM plugin_neighbor_tree_rule_items WHERE rule_id = ? ORDER BY sequence', array($rule_id));
 	html_start_box($title, '100%', '', '3', 'center', $module . '?action=item_edit&id=' . $rule_id . '&rule_type=' . $rule_type);
 
 	$display_text = array(
@@ -133,10 +133,10 @@ function neighbor_global_item_edit($rule_id, $rule_item_id, $rule_type) {
 	switch ($rule_type) {
 	case AUTOMATION_RULE_TYPE_GRAPH_MATCH:
 		$title = __('Device Match Rule');
-		$item_table = 'plugin_neighbor__match_rule_items';
+		$item_table = 'plugin_neighbor_match_rule_items';
 		$sql_and = ' AND rule_type=' . $rule_type;
 		$tables = array ('host', 'host_templates');
-		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__graph_rules WHERE id = ?', array($rule_id));
+		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_graph_rules WHERE id = ?', array($rule_id));
 
 		$_fields_rule_item_edit = $fields_neighbor_match_rule_item_edit;
 		$query_fields  = get_query_fields('host_template', array('id', 'hash'));
@@ -149,11 +149,11 @@ function neighbor_global_item_edit($rule_id, $rule_item_id, $rule_type) {
 	case AUTOMATION_RULE_TYPE_GRAPH_ACTION:
 		$title      = __('Create Graph Rule');
 		$tables     = array(AUTOMATION_RULE_TABLE_XML);
-		$item_table = 'plugin_neighbor__graph_rule_items';
+		$item_table = 'plugin_neighbor_graph_rule_items';
 		$sql_and    = '';
 
 		$neighbor_rule = db_fetch_row_prepared('SELECT *
-			FROM plugin_neighbor__rules
+			FROM plugin_neighbor_rules
 			WHERE id = ?',
 			array($rule_id));
 		
@@ -165,7 +165,7 @@ function neighbor_global_item_edit($rule_id, $rule_item_id, $rule_type) {
 		$_fields_rule_item_edit = $fields_neighbor_graph_rule_item_edit;
 		$fields = array();
 		foreach ($neighbor_options as $opt) {
-				$cols = db_get_table_column_types("plugin_neighbor__".$opt);
+				$cols = db_get_table_column_types("plugin_neighbor_".$opt);
 				foreach ($cols as $col => $rec) {
 					if (preg_match("/^id$|_id|_hash|last_seen|_changed/",$col)) { continue;}
 					$fields["$opt.$col"] = $opt . " - " . $col;
@@ -194,9 +194,9 @@ function neighbor_global_item_edit($rule_id, $rule_item_id, $rule_type) {
 
 		break;
 	case AUTOMATION_RULE_TYPE_TREE_MATCH:
-		$item_table = 'plugin_neighbor__match_rule_items';
+		$item_table = 'plugin_neighbor_match_rule_items';
 		$sql_and = ' AND rule_type=' . $rule_type;
-		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__tree_rules WHERE id = ?', array($rule_id));
+		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_tree_rules WHERE id = ?', array($rule_id));
 		$_fields_rule_item_edit = $fields_neighbor_match_rule_item_edit;
 		$query_fields  = get_query_fields('host_template', array('id', 'hash'));
 		$query_fields += get_query_fields('host', array('id', 'host_template_id'));
@@ -219,9 +219,9 @@ function neighbor_global_item_edit($rule_id, $rule_item_id, $rule_type) {
 
 		break;
 	case AUTOMATION_RULE_TYPE_TREE_ACTION:
-		$item_table = 'plugin_neighbor__tree_rule_items';
+		$item_table = 'plugin_neighbor_tree_rule_items';
 		$sql_and = '';
-		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__tree_rules WHERE id = ?', array($rule_id));
+		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_tree_rules WHERE id = ?', array($rule_id));
 
 		$_fields_rule_item_edit = $fields_neighbor_tree_rule_item_edit;
 		$query_fields  = get_query_fields('host_template', array('id', 'hash'));
@@ -577,7 +577,7 @@ function neighbor_display_match_rule_items($title, $rule_id, $rule_type, $module
 	global $automation_op_array, $automation_oper, $automation_tree_header_types;
 
 	$items = db_fetch_assoc_prepared('SELECT *
-		FROM plugin_neighbor__match_rule_items
+		FROM plugin_neighbor_match_rule_items
 		WHERE rule_id = ?
 		AND rule_type = ?
 		ORDER BY sequence',
@@ -650,7 +650,7 @@ function neighbor_build_matching_objects_filter($rule_id, $rule_type) {
 	 *  'Matching Device' match
 	 */
 	$rule_items = db_fetch_assoc_prepared('SELECT *
-		FROM plugin_neighbor__match_rule_items
+		FROM plugin_neighbor_match_rule_items
 		WHERE rule_id = ?
 		AND rule_type = ?
 		ORDER BY sequence',
@@ -977,7 +977,7 @@ function neighbor_rule_to_json($rule_id) {
 	$rule_id = $rule_id ? $rule_id : (isset_request_var('rule_id') ? get_request_var('rule_id') 	: '');
 	$ajax    = isset_request_var('ajax')    ? get_request_var('ajax') 		: '';
 	$format  = isset_request_var('format')  ? get_request_var('format') 	: 'json';
-	$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__rules WHERE id = ?',array($rule_id));
+	$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_rules WHERE id = ?',array($rule_id));
 	$sql_query = neighbor_build_data_query_sql($rule);
 		
 	$neighbor_objects = db_fetch_assoc($sql_query);
@@ -1005,7 +1005,7 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	$edge_filter = isset_request_var('edge_filter') ? get_request_var('edge_filter') : "";
 	$host_filter = "";
 		
-	$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__rules WHERE id = ?',array($rule_id));
+	$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_rules WHERE id = ?',array($rule_id));
 	$sql_query = neighbor_build_data_query_sql($rule,$host_filter,$edge_filter);
 	$results = db_fetch_assoc($sql_query);
 	$neighbor_objects = db_fetch_hash($results,array('hostname','neighbor_hostname','interface_name'));			 // Organise the results into a tree
@@ -1041,9 +1041,9 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	$user_id = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : 0;
 	error_log("Looking for saved map positions for user: $user_id, map: $rule_id");
 	$stored_map = array();
-	$has_user_map_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__user_map'");
+	$has_user_map_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_user_map'");
 	if ($has_user_map_table) {
-		$stored_map = db_fetch_assoc_prepared("SELECT * from plugin_neighbor__user_map where user_id=? AND rule_id=?",array($user_id,$rule_id));
+		$stored_map = db_fetch_assoc_prepared("SELECT * from plugin_neighbor_user_map where user_id=? AND rule_id=?",array($user_id,$rule_id));
 	}
 
 	if (!is_array($stored_map)) {
@@ -1177,26 +1177,26 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	// print $json;
 }
 
-// Update the plugin_neighbor__edge table
+// Update the plugin_neighbor_edge table
 
 function update_edges_db($rule_id,$edges) {
 	error_log("update_edges_db() is running.");
 	//error_log("Edges is:".print_r($edges,1));
-	db_execute_prepared("DELETE FROM plugin_neighbor__edge where rule_id = ? and edge_updated < DATE_SUB(NOW(), INTERVAL 1 DAY)",array(1));
+	db_execute_prepared("DELETE FROM plugin_neighbor_edge where rule_id = ? and edge_updated < DATE_SUB(NOW(), INTERVAL 1 DAY)",array(1));
 	foreach ($edges as $edge) {
 		$edge_json = json_encode($edge);
-		db_execute_prepared("REPLACE INTO plugin_neighbor__edge (rule_id,from_id,to_id,rrd_file,edge_json,edge_updated)
+		db_execute_prepared("REPLACE INTO plugin_neighbor_edge (rule_id,from_id,to_id,rrd_file,edge_json,edge_updated)
 							 VALUES (?,?,?,?,?,NOW())",
 							 array($rule_id,$edge['from'],$edge['to'],$edge['rrd_file'],$edge_json));
 	}
 }
 
-// Fetch the latest poller results from plugin_neighbor__edge
+// Fetch the latest poller results from plugin_neighbor_edge
 function get_edges_poller($rule_id) {
 	
-	$results = db_fetch_assoc_prepared("SELECT * from plugin_neighbor__edge
-									    LEFT JOIN plugin_neighbor__poller_delta on plugin_neighbor__edge.rrd_file = plugin_neighbor__poller_delta.rrd_file
-										WHERE plugin_neighbor__edge.rule_id =?",array($rule_id));
+	$results = db_fetch_assoc_prepared("SELECT * from plugin_neighbor_edge
+									    LEFT JOIN plugin_neighbor_poller_delta on plugin_neighbor_edge.rrd_file = plugin_neighbor_poller_delta.rrd_file
+										WHERE plugin_neighbor_edge.rule_id =?",array($rule_id));
 	$hash = db_fetch_hash($results,array('from_id','to_id','rrd_file','key_name'));
 	return($hash);
 }
@@ -1474,7 +1474,7 @@ function neighbor_build_data_query_sql($rule,$host_filter,$edge_filter) {
 			continue;
 		}
 
-		$table = "plugin_neighbor__".$opt;
+		$table = "plugin_neighbor_".$opt;
 		array_push($table_join,"LEFT JOIN $table $opt ON $opt.host_id=h.id");
 		array_push($tables,"$table as $opt");
 		$cols = db_get_table_column_types($table);
@@ -1524,7 +1524,7 @@ function neighbor_build_graph_rule_item_filter($rule_id, $prefix = '') {
 	
 	if ($rule_id) {
 		
-		$graph_rule_items = db_fetch_assoc_prepared("SELECT * from plugin_neighbor__graph_rule_items where rule_id=?",array($rule_id));
+		$graph_rule_items = db_fetch_assoc_prepared("SELECT * from plugin_neighbor_graph_rule_items where rule_id=?",array($rule_id));
 	
 		if (sizeof($graph_rule_items)) {
 			$sql_filter = ' ';

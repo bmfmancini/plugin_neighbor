@@ -103,7 +103,7 @@ function neighbor_tree_rules_form_save() {
 		$save['host_grouping_type'] = isset_request_var('host_grouping_type') ? form_input_validate(get_nfilter_request_var('host_grouping_type'), 'host_grouping_type', '^[0-9]+$', false, 3) : 0;
 		$save['enabled']            = (isset_request_var('enabled') ? 'on' : '');
 		if (!is_error_message()) {
-			$rule_id = sql_save($save, 'plugin_neighbor__tree_rules');
+			$rule_id = sql_save($save, 'plugin_neighbor_tree_rules');
 
 			if ($rule_id) {
 				raise_message(1);
@@ -131,7 +131,7 @@ function neighbor_tree_rules_form_save() {
 		$save['pattern']   = form_input_validate((isset_request_var('pattern') ? get_nfilter_request_var('pattern') : ''), 'pattern', '', true, 3);
 
 		if (!is_error_message()) {
-			$item_id = sql_save($save, 'plugin_neighbor__match_rule_items');
+			$item_id = sql_save($save, 'plugin_neighbor_match_rule_items');
 
 			if ($item_id) {
 				raise_message(1);
@@ -163,7 +163,7 @@ function neighbor_tree_rules_form_save() {
 		$save['replace_pattern']   = isset_request_var('replace_pattern') ? form_input_validate(get_nfilter_request_var('replace_pattern'), 'replace_pattern', '', true, 3) : '';
 
 		if (!is_error_message()) {
-			$neighbor_graph_rule_item_id = sql_save($save, 'plugin_neighbor___tree_rule_items');
+			$neighbor_graph_rule_item_id = sql_save($save, 'plugin_neighbor_tree_rule_items');
 
 			if ($neighbor_graph_rule_item_id) {
 				raise_message(1);

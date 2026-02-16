@@ -116,7 +116,7 @@ function save_vrf_rule() {
 		error_log("save_vrf_rule(): SAVE is=".print_r($save,1));
 		if (!is_error_message()) {
 			error_log("SQL Saving..");
-			$rule_id = sql_save($save, 'plugin_neighbor__vrf_rules');
+			$rule_id = sql_save($save, 'plugin_neighbor_vrf_rules');
 			if ($rule_id) 	{ raise_message(1); }
 			else 			{ raise_message(2); }
 		}
@@ -146,7 +146,7 @@ function save_vrf_rule() {
 
 		if (!is_error_message()) {
 			error_log("Saving record with save:".print_r($save,1));
-			$item_id = sql_save($save, 'plugin_neighbor__vrf_rule_items');
+			$item_id = sql_save($save, 'plugin_neighbor_vrf_rule_items');
 			if ($item_id) 	{ raise_message(1); }
 			else 			{ raise_message(2); }
 		}
@@ -176,7 +176,7 @@ function save_vrf_rule() {
 		$save['pattern']   = form_input_validate((isset_request_var('pattern') ? get_nfilter_request_var('pattern') : ''), 'pattern', '', true, 3);
 
 		if (!is_error_message()) {
-			$item_id = sql_save($save, 'plugin_neighbor__vrf_match_rule_items');
+			$item_id = sql_save($save, 'plugin_neighbor_vrf_match_rule_items');
 			if ($item_id) 	{ raise_message(1); }
 			else 			{ raise_message(2); }
 		}
@@ -209,8 +209,8 @@ function neighbor_rules_form_actions() {
 
 		if ($selected_items != false) {
 			if (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_GRAPH_DELETE) { /* delete */
-				db_execute('DELETE FROM plugin_neighbor__vrf_rules WHERE ' . array_to_sql_or($selected_items, 'id'));
-				db_execute('DELETE FROM plugin_neighbor__plugin__rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
+				db_execute('DELETE FROM plugin_neighbor_vrf_rules WHERE ' . array_to_sql_or($selected_items, 'id'));
+				db_execute('DELETE FROM plugin_neighbor_plugin_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
 				db_execute('DELETE FROM plugin_network__match_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
 			} elseif (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_GRAPH_DUPLICATE) { /* duplicate */
 				for ($i=0;($i<count($selected_items));$i++) {
@@ -252,7 +252,7 @@ function neighbor_rules_form_actions() {
 			input_validate_input_number($matches[1]);
 			/* ==================================================== */
 
-			$neighbor_rules_list .= '<li>' . db_fetch_cell_prepared('SELECT name FROM plugin_neighbor__vrf_rules WHERE id = ?', array($matches[1])) . '</li>';
+			$neighbor_rules_list .= '<li>' . db_fetch_cell_prepared('SELECT name FROM plugin_neighbor_vrf_rules WHERE id = ?', array($matches[1])) . '</li>';
 			$neighbor_rules_array[] = $matches[1];
 		}
 	}
@@ -329,7 +329,7 @@ function neighbor_rules_item_movedown() {
 	/* ==================================================== */
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		move_item_down('plugin_neighbor__match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_down('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
 		move_item_down('neighbor_plugin__rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
@@ -343,7 +343,7 @@ function neighbor_rules_item_moveup() {
 	/* ==================================================== */
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		move_item_up('plugin_neighbor__match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_up('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
 		move_item_up('neighbor_plugin__rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
@@ -356,9 +356,9 @@ function neighbor_rules_item_remove() {
 	/* ==================================================== */
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		db_execute_prepared('DELETE FROM plugin_neighbor__match_rule_items WHERE id = ?', array(get_request_var('item_id')));
+		db_execute_prepared('DELETE FROM plugin_neighbor_match_rule_items WHERE id = ?', array(get_request_var('item_id')));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
-		db_execute_prepared('DELETE FROM plugin_neighbor__vrf_rule_items WHERE id = ?', array(get_request_var('item_id')));
+		db_execute_prepared('DELETE FROM plugin_neighbor_vrf_rule_items WHERE id = ?', array(get_request_var('item_id')));
 	}
 
 }
@@ -429,7 +429,7 @@ function neighbor_rules_remove() {
 
 	if ((read_config_option('deletion_verification') == 'on') && (!isset_request_var('confirm'))) {
 		top_header();
-		form_confirm(__('Are You Sure?'), __("Are you sure you want to delete the Rule '%s'?", db_fetch_cell_prepared('SELECT name FROM plugin_neighbor__vrf_rules WHERE id = ?', array(get_request_var('id')))), 'neighbor_vrf_rules.php', 'neighbor_vrf_rules.php?action=remove&id=' . get_request_var('id'));
+		form_confirm(__('Are You Sure?'), __("Are you sure you want to delete the Rule '%s'?", db_fetch_cell_prepared('SELECT name FROM plugin_neighbor_vrf_rules WHERE id = ?', array(get_request_var('id')))), 'neighbor_vrf_rules.php', 'neighbor_vrf_rules.php?action=remove&id=' . get_request_var('id'));
 		bottom_footer();
 		exit;
 	}
@@ -440,11 +440,11 @@ function neighbor_rules_remove() {
 			AND rule_type = ?',
 			array(get_request_var('id'), AUTOMATION_RULE_TYPE_GRAPH_MATCH));
 
-		db_execute_prepared('DELETE FROM plugin_neighbor__plugin__rule_items
+		db_execute_prepared('DELETE FROM plugin_neighbor_plugin_rule_items
 			WHERE rule_id = ?',
 			array(get_request_var('id')));
 
-		db_execute_prepared('DELETE FROM plugin_neighbor__vrf_rules
+		db_execute_prepared('DELETE FROM plugin_neighbor_vrf_rules
 			WHERE id = ?',
 			array(get_request_var('id')));
 	}
@@ -457,7 +457,7 @@ function neighbor_change_query_type() {
 		$snmp_query_id = get_filter_request_var('snmp_query_id');
 		$name = get_nfilter_request_var('name');
 
-		db_execute_prepared('UPDATE plugin_neighbor__vrf_rules
+		db_execute_prepared('UPDATE plugin_neighbor_vrf_rules
 			SET snmp_query_id = ?, name = ?
 			WHERE id = ?',
 			array($snmp_query_id, $name, $id));
@@ -467,7 +467,7 @@ function neighbor_change_query_type() {
 		$name = get_nfilter_request_var('name');
 		$neighbor_type = get_nfilter_request_var('neighbor_type');
 		$neighbor_options = get_nfilter_request_var('neighbor_options');
-		db_execute_prepared('UPDATE plugin_neighbor__vrf_rules
+		db_execute_prepared('UPDATE plugin_neighbor_vrf_rules
 			SET neighbor_type = ?, name = ?, neighbor_options = ?
 			WHERE id = ?',
 			array($neighbor_type, $name, $neighbor_options, $id));
@@ -477,7 +477,7 @@ function neighbor_change_query_type() {
 		$name = get_nfilter_request_var('name');
 		$neighbor_type = get_nfilter_request_var('neighbor_type');
 		$neighbor_options = get_nfilter_request_var('neighbor_options');
-		db_execute_prepared('UPDATE plugin_neighbor__vrf_rules
+		db_execute_prepared('UPDATE plugin_neighbor_vrf_rules
 			SET neighbor_type = ?, name = ?, neighbor_options = ?
 			WHERE id = ?',
 			array($neighbor_type, $name, $neighbor_options, $id));
@@ -537,7 +537,7 @@ function neighbor_vrf_rules_edit() {
 	 */
 	$rule = array();
 	if (!isempty_request_var('id')) {
-		$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__vrf_rules where id = ?', array(get_request_var('id')));
+		$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_vrf_rules where id = ?', array(get_request_var('id')));
 
 		if (!isempty_request_var('graph_type_id')) {
 			$rule['graph_type_id'] = get_request_var('graph_type_id'); # set query_type for display
@@ -855,8 +855,8 @@ function get_neighbor_vrf_rules(&$total_rows = 0, $rowStart = 1, $rowEnd = 25, $
 	if ($filterVal != '')										{ array_push($conditions,"`name` like ?"); array_push($params, $filterVal); }
 		
     $sqlWhere = count($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
-    $result = db_fetch_assoc_prepared("select * from plugin_neighbor__vrf_rules rules $sqlWhere $sqlOrder $sqlLimit", $params);
-    $total_rows = db_fetch_cell_prepared("select count(*) as total_rows from plugin_neighbor__vrf_rules rules $sqlWhere",$params);
+    $result = db_fetch_assoc_prepared("select * from plugin_neighbor_vrf_rules rules $sqlWhere $sqlOrder $sqlLimit", $params);
+    $total_rows = db_fetch_cell_prepared("select count(*) as total_rows from plugin_neighbor_vrf_rules rules $sqlWhere",$params);
     //print "Set total_rows = $total_rows<br>";
     if ($output == 'array') 	{ return($result);}
     elseif ($output == 'json') 	{ return(json_encode($result));}
@@ -954,7 +954,7 @@ function get_neighbor_vrf_rules_filter() {
 function get_vrf_list($output = 'array') {
 	
 	$vrf = array( 'global' => 'Global Table (no VRF)');
-	$result = db_fetch_assoc_prepared("SELECT DISTINCT vrf FROM plugin_neighbor__ipv4_cache ORDER BY vrf ASC", array());
+	$result = db_fetch_assoc_prepared("SELECT DISTINCT vrf FROM plugin_neighbor_ipv4_cache ORDER BY vrf ASC", array());
 	foreach ((array) $result as $row) {
 		if ($row['vrf']) {
 			$vrf[$row['vrf']] = $row['vrf'];
@@ -969,7 +969,7 @@ function neighbor_display_vrf_match_rule_items($title, $rule_id, $rule_type, $mo
 	global $automation_op_array, $automation_oper, $automation_tree_header_types;
 
 	$items = db_fetch_assoc_prepared('SELECT *
-		FROM plugin_neighbor__vrf_match_rule_items
+		FROM plugin_neighbor_vrf_match_rule_items
 		WHERE rule_id = ?
 		AND rule_type = ?
 		ORDER BY sequence',
@@ -1035,7 +1035,7 @@ function neighbor_display_vrf_match_rule_items($title, $rule_id, $rule_type, $mo
 function neighbor_display_vrf_rule_items($title, $rule_id, $rule_type, $module) {
 	
 	global $automation_op_array, $automation_oper, $automation_tree_header_types;
-	$items = db_fetch_assoc_prepared('SELECT * FROM plugin_neighbor__vrf_rule_items WHERE rule_id = ? ORDER BY sequence', array($rule_id));
+	$items = db_fetch_assoc_prepared('SELECT * FROM plugin_neighbor_vrf_rule_items WHERE rule_id = ? ORDER BY sequence', array($rule_id));
 	html_start_box($title, '100%', '', '3', 'center', $module . '?action=item_edit&id=' . $rule_id . '&rule_type=' . $rule_type);
 
 	$display_text = array(
@@ -1101,10 +1101,10 @@ function neighbor_global_vrf_item_edit($rule_id, $rule_item_id, $rule_type) {
 	switch ($rule_type) {
 	case AUTOMATION_RULE_TYPE_GRAPH_MATCH:
 		$title = __('Device Match Rule');
-		$item_table = 'plugin_neighbor__vrf_match_rule_items';
+		$item_table = 'plugin_neighbor_vrf_match_rule_items';
 		$sql_and = ' AND rule_type=' . $rule_type;
 		$tables = array ('host', 'host_templates');
-		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__vrf_rules WHERE id = ?', array($rule_id));
+		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_vrf_rules WHERE id = ?', array($rule_id));
 
 		$_fields_rule_item_edit = $fields_neighbor_match_rule_item_edit;
 		$query_fields  = get_query_fields('host_template', array('id', 'hash'));
@@ -1117,17 +1117,17 @@ function neighbor_global_vrf_item_edit($rule_id, $rule_item_id, $rule_type) {
 	case AUTOMATION_RULE_TYPE_GRAPH_ACTION:
 		$title      = __('Create Graph Rule');
 		$tables     = array(AUTOMATION_RULE_TABLE_XML);
-		$item_table = 'plugin_neighbor__vrf_rule_items';
+		$item_table = 'plugin_neighbor_vrf_rule_items';
 		$sql_and    = '';
 
 		$neighbor_rule = db_fetch_row_prepared('SELECT *
-			FROM plugin_neighbor__vrf_rules
+			FROM plugin_neighbor_vrf_rules
 			WHERE id = ?',
 			array($rule_id));
 		
 		//pre_print_r($neighbor_rule,"MooOink:");
 		
-		$cols = db_get_table_column_types("plugin_neighbor__ipv4_cache");
+		$cols = db_get_table_column_types("plugin_neighbor_ipv4_cache");
 		//pre_print_r($cols,"Cols:");
 		$_fields_rule_item_edit = $fields_neighbor_graph_rule_item_edit;
 		foreach ($cols as $col => $rec) {
@@ -1140,9 +1140,9 @@ function neighbor_global_vrf_item_edit($rule_id, $rule_item_id, $rule_type) {
 
 		break;
 	case AUTOMATION_RULE_TYPE_TREE_MATCH:
-		$item_table = 'plugin_neighbor__match_rule_items';
+		$item_table = 'plugin_neighbor_match_rule_items';
 		$sql_and = ' AND rule_type=' . $rule_type;
-		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__tree_rules WHERE id = ?', array($rule_id));
+		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_tree_rules WHERE id = ?', array($rule_id));
 		$_fields_rule_item_edit = $fields_neighbor_match_rule_item_edit;
 		$query_fields  = get_query_fields('host_template', array('id', 'hash'));
 		$query_fields += get_query_fields('host', array('id', 'host_template_id'));
@@ -1165,9 +1165,9 @@ function neighbor_global_vrf_item_edit($rule_id, $rule_item_id, $rule_type) {
 
 		break;
 	case AUTOMATION_RULE_TYPE_TREE_ACTION:
-		$item_table = 'plugin_neighbor__tree_rule_items';
+		$item_table = 'plugin_neighbor_tree_rule_items';
 		$sql_and = '';
-		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor__tree_rules WHERE id = ?', array($rule_id));
+		$neighbor_rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_tree_rules WHERE id = ?', array($rule_id));
 
 		$_fields_rule_item_edit = $fields_neighbor_tree_rule_item_edit;
 		$query_fields  = get_query_fields('host_template', array('id', 'hash'));

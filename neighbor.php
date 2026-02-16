@@ -70,10 +70,10 @@ switch(get_request_var('action')) {
 		bottom_footer();
 		break;
 	case 'ajax_hosts':
-		get_allowed_ajax_hosts(true, false, 'h.id IN (SELECT host_id FROM plugin_neighbor__xdp)');
+		get_allowed_ajax_hosts(true, false, 'h.id IN (SELECT host_id FROM plugin_neighbor_xdp)');
 		break;
 	case 'ajax_hosts_noany':
-		get_allowed_ajax_hosts(true, false, 'h.id IN (SELECT host_id FROM plugin_neighbor__xdp)');
+		get_allowed_ajax_hosts(true, false, 'h.id IN (SELECT host_id FROM plugin_neighbor_xdp)');
 		break;
 	case 'hoststat':
 		general_header();

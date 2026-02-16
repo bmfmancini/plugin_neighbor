@@ -26,7 +26,7 @@
 function get_edge_rra() {
 	
 	$rrd_array = [];
-	$rows = db_fetch_assoc("SELECT rrd_file from plugin_neighbor__edge");
+	$rows = db_fetch_assoc("SELECT rrd_file from plugin_neighbor_edge");
 	foreach ($rows as $row) {
 		$rrd = isset($row['rrd_file']) ? $row['rrd_file'] : "";
 		if ($rrd) {
@@ -39,11 +39,11 @@ function neighbor_poller_output(&$rrd_update_array) {
 	global $config, $debug;
 
 	$edge_rra = get_edge_rra();
-	//db_execute_prepared("INSERT into plugin_neighbor__log values (?,NOW(),?)",array('',"Edges:".print_r($edge_rra,true)));
+	//db_execute_prepared("INSERT into plugin_neighbor_log values (?,NOW(),?)",array('',"Edges:".print_r($edge_rra,true)));
 	$path_rra = $config['rra_path'];
 	foreach ($rrd_update_array as $rrd => $rec) {
 		$rra_subst = str_replace($path_rra,"<path_rra>",$rrd);
-		//db_execute_prepared("INSERT into plugin_neighbor__log values (?,NOW(),?)",array('',"$rra_subst:".print_r($rec,true)));
+		//db_execute_prepared("INSERT into plugin_neighbor_log values (?,NOW(),?)",array('',"$rra_subst:".print_r($rec,true)));
 		if (!isset($edge_rra[$rra_subst])) {
 			continue;
 		}		// No point in storing outputs for everything
@@ -53,7 +53,7 @@ function neighbor_poller_output(&$rrd_update_array) {
 		
 			foreach ($data as $key => $counter) {
 				
-				db_execute_prepared("INSERT into plugin_neighbor__poller_output
+				db_execute_prepared("INSERT into plugin_neighbor_poller_output
 						     VALUES ('',?,?,?,?,NOW())
 						     ON DUPLICATE KEY UPDATE
 						     key_name=?,
@@ -64,7 +64,7 @@ function neighbor_poller_output(&$rrd_update_array) {
 		
 	}
 	
-	db_execute_prepared("DELETE FROM plugin_neighbor__poller_output where timestamp < ?", array(time() - 900));	// Nothing older than 15 minutes
+	db_execute_prepared("DELETE FROM plugin_neighbor_poller_output where timestamp < ?", array(time() - 900));	// Nothing older than 15 minutes
 	return $rrd_update_array;
 }
 
@@ -87,18 +87,18 @@ function process_poller_deltas() {
 	
 	// Fetch the poller output samples
 
-	db_execute_prepared("INSERT into plugin_neighbor__log values (?,NOW(),?)",array('','process_poller_deltas() is starting.'));
-	$results = db_fetch_assoc("SELECT * from plugin_neighbor__poller_output");
-	//db_execute_prepared("INSERT into plugin_neighbor__log values (?,NOW(),?)",array('','process_poller_deltas() has run db_fetch_assoc'));
+	db_execute_prepared("INSERT into plugin_neighbor_log values (?,NOW(),?)",array('','process_poller_deltas() is starting.'));
+	$results = db_fetch_assoc("SELECT * from plugin_neighbor_poller_output");
+	//db_execute_prepared("INSERT into plugin_neighbor_log values (?,NOW(),?)",array('','process_poller_deltas() has run db_fetch_assoc'));
 	$hash = db_fetch_hash($results,array('rrd_file','timestamp','key_name'));
-	//db_execute_prepared("INSERT into plugin_neighbor__log values (?,NOW(),?)",array('','process_poller_deltas() has run db_fetch_hash'));
+	//db_execute_prepared("INSERT into plugin_neighbor_log values (?,NOW(),?)",array('','process_poller_deltas() has run db_fetch_hash'));
 
 		
 	foreach ($hash as $rrdFile => $data) {
 		cacti_tag_log("NEIGHBOR POLLER","process_poller_deltas() is processing RRD:$rrdFile,with data:",print_r($data,1));
 		$timestamps = array_keys($data);
 		rsort($timestamps);		// We want the last two timestamps, so order them in reverse
-		db_execute_prepared("INSERT into plugin_neighbor__log values (?,NOW(),?)",array('','process_poller_deltas() is running. Timestamps:'.print_r($timestamps,1)));
+		db_execute_prepared("INSERT into plugin_neighbor_log values (?,NOW(),?)",array('','process_poller_deltas() is running. Timestamps:'.print_r($timestamps,1)));
 		
 		if (sizeof($timestamps) >= 2) {
 			$now = $timestamps[0];
@@ -107,18 +107,18 @@ function process_poller_deltas() {
 			$poller_interval = read_config_option('poller_interval') ? read_config_option('poller_interval') : 300;
 			$timestamp_cycle = intval($now / $poller_interval) * $poller_interval ;	// Normalise these down to a poller cycle boundary to group them together
 			cacti_tag_log("NEIGHBOR POLLER","process_poller_deltas(): now:$now, before:$before, Hash:".print_r($data[$now],true));
-			db_execute_prepared("INSERT into plugin_neighbor__log values (?,NOW(),?)",array('',"Now:$now, Before:$before, Hash:".print_r($data[$now],true)));
+			db_execute_prepared("INSERT into plugin_neighbor_log values (?,NOW(),?)",array('',"Now:$now, Before:$before, Hash:".print_r($data[$now],true)));
 			foreach ($data[$now] as $key => $record) {
 					
-					db_execute_prepared("INSERT into plugin_neighbor__log values (?,NOW(),?)",array('',"RRD:$rrdFile, data now:".print_r($data[$now][$key],true)));
-					db_execute_prepared("INSERT into plugin_neighbor__log values (?,NOW(),?)",array('',"RRD:$rrdFile, data before:".print_r($data[$now][$key],true)));
+					db_execute_prepared("INSERT into plugin_neighbor_log values (?,NOW(),?)",array('',"RRD:$rrdFile, data now:".print_r($data[$now][$key],true)));
+					db_execute_prepared("INSERT into plugin_neighbor_log values (?,NOW(),?)",array('',"RRD:$rrdFile, data before:".print_r($data[$now][$key],true)));
 					$delta = sprintf("%.2f",($data[$now][$key]['value'] -  $data[$before][$key]['value']) / $timeDelta);
 					cacti_tag_log("NEIGHBOR POLLER","process_poller_deltas(): RRD: $rrdFile, Key: $key, Delta: $delta");
-					db_execute_prepared("INSERT INTO plugin_neighbor__poller_delta VALUES ('',?,?,?,?,?)",array($rrdFile,$now,$timestamp_cycle,$key,$delta));
+					db_execute_prepared("INSERT INTO plugin_neighbor_poller_delta VALUES ('',?,?,?,?,?)",array($rrdFile,$now,$timestamp_cycle,$key,$delta));
 			}
 		}
 	}
-	db_execute_prepared("DELETE FROM plugin_neighbor__poller_delta where timestamp < ?", array(time() - 900));	// Nothing older than 15 minutes
+	db_execute_prepared("DELETE FROM plugin_neighbor_poller_delta where timestamp < ?", array(time() - 900));	// Nothing older than 15 minutes
 }
 
 

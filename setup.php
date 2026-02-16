@@ -58,25 +58,25 @@ function plugin_neighbor_install () {
 function plugin_neighbor_uninstall () {
 	
 	// Drop all plugin tables
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__xdp`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__ipv4`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__ipv4_cache`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__processes`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_xdp`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_ipv4`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_ipv4_cache`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_processes`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__log`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__edge`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__poller_output`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__poller_delta`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__user_map`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__rules`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__graph_rules`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__graph_rule_items`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__match_rule_items`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__tree_rules`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__tree_rule_items`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__vrf_rules`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__vrf_rule_items`');
-	db_execute('DROP TABLE IF EXISTS `plugin_neighbor__vrf_match_rule_items`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_processes`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_log`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_edge`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_poller_output`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_poller_delta`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_user_map`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_rules`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_graph_rules`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_graph_rule_items`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_match_rule_items`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_tree_rules`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_tree_rule_items`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_vrf_rules`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_vrf_rule_items`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_vrf_match_rule_items`');
 }
 
 function plugin_neighbor_check_config () {
@@ -113,23 +113,23 @@ function neighbor_check_upgrade () {
 	$current = $info['version'];
 	$old     = db_fetch_cell("SELECT version FROM plugin_config WHERE directory='neighbor'");
 
-	$has_xdp_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__xdp'");
-	$has_rules_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__rules'");
-	$has_user_map_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__user_map'");
-	$has_edge_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__edge'");
-	$has_poller_output_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__poller_output'");
-	$has_poller_delta_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__poller_delta'");
-	$has_processes_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__processes'");
-	$has_log_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__log'");
-	$has_vrf_rules_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__vrf_rules'");
-	$has_vrf_rule_items_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__vrf_rule_items'");
-	$has_vrf_match_rule_items_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor__vrf_match_rule_items'");
+	$has_xdp_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_xdp'");
+	$has_rules_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_rules'");
+	$has_user_map_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_user_map'");
+	$has_edge_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_edge'");
+	$has_poller_output_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_poller_output'");
+	$has_poller_delta_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_poller_delta'");
+	$has_processes_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_processes'");
+	$has_log_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_log'");
+	$has_vrf_rules_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_vrf_rules'");
+	$has_vrf_rule_items_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_vrf_rule_items'");
+	$has_vrf_match_rule_items_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_vrf_match_rule_items'");
 	$has_neighbor_type = false;
 	$has_neighbor_options = false;
 
 	if ($has_rules_table) {
-		$has_neighbor_type = db_fetch_cell("SHOW COLUMNS FROM plugin_neighbor__rules LIKE 'neighbor_type'");
-		$has_neighbor_options = db_fetch_cell("SHOW COLUMNS FROM plugin_neighbor__rules LIKE 'neighbor_options'");
+		$has_neighbor_type = db_fetch_cell("SHOW COLUMNS FROM plugin_neighbor_rules LIKE 'neighbor_type'");
+		$has_neighbor_options = db_fetch_cell("SHOW COLUMNS FROM plugin_neighbor_rules LIKE 'neighbor_options'");
 	}
 
 	if (!$has_xdp_table || !$has_rules_table || !$has_user_map_table || !$has_edge_table || !$has_poller_output_table || !$has_poller_delta_table || !$has_processes_table || !$has_log_table || !$has_vrf_rules_table || !$has_vrf_rule_items_table || !$has_vrf_match_rule_items_table || !$has_neighbor_type || !$has_neighbor_options) {
@@ -590,7 +590,7 @@ function neighbor_api_device_save($save) {
 
 
 function neighbor_device_remove($devices) {
-        db_execute('DELETE FROM plugin_neighbor__xdp WHERE host_id IN(' . implode(',', $devices) . ')');
+        db_execute('DELETE FROM plugin_neighbor_xdp WHERE host_id IN(' . implode(',', $devices) . ')');
         return $devices;
 }
 
