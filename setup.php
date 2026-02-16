@@ -634,8 +634,16 @@ function neighbor_api_device_save($save) {
 
 
 function neighbor_device_remove($devices) {
-	db_execute('DELETE FROM plugin_neighbor_xdp WHERE host_id IN(' . implode(',', $devices) . ')');
-	db_execute('DELETE FROM plugin_neighbor_host WHERE host_id IN(' . implode(',', $devices) . ')');
+	if (!is_array($devices) || count($devices) == 0) {
+		return $devices;
+	}
+	
+	$devices = array_map('intval', $devices);
+	$placeholders = implode(',', array_fill(0, count($devices), '?'));
+	
+	db_execute_prepared("DELETE FROM plugin_neighbor_xdp WHERE host_id IN($placeholders)", $devices);
+	db_execute_prepared("DELETE FROM plugin_neighbor_host WHERE host_id IN($placeholders)", $devices);
+	
 	return $devices;
 }
 
