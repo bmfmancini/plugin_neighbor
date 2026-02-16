@@ -360,7 +360,6 @@ function neighbor_graph_rules_item_edit() {
 	form_hidden_box('id', (isset_request_var('id') ? get_request_var('id') : '0'), '');
 	form_hidden_box('item_id', (isset_request_var('item_id') ? get_request_var('item_id') : '0'), '');
 
-	print "<pre> Rule Type: ".get_request_var('rule_type')." = ".AUTOMATION_RULE_TYPE_GRAPH_MATCH." ? \n</pre>";
 	if(get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
 		form_hidden_box('save_component_neighbor_match_item', '1', '');
 	} else {

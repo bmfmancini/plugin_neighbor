@@ -10,7 +10,7 @@ $(document).ready(function() {
 		dataType: "jsonp",
 		success: function( response ) {
 			// Build the dxDataGrid with the response
-			var data = typeof(response.Response[0]) === 'undefined' ? [] : response.Response[0];
+			var data = (response && response.Response && response.Response[0]) ? response.Response[0] : [];
 			var dataGrid = $("#xdp_neighbors_holder").dxDataGrid({
 				dataSource: data,
 				columnsAutoWidth: true,

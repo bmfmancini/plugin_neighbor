@@ -199,8 +199,8 @@ function neighbor_rules_form_actions() {
 		if ($selected_items != false) {
 			if (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_GRAPH_DELETE) { /* delete */
 				db_execute('DELETE FROM plugin_neighbor_vrf_rules WHERE ' . array_to_sql_or($selected_items, 'id'));
-				db_execute('DELETE FROM plugin_neighbor_plugin_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
-				db_execute('DELETE FROM plugin_network__match_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
+				db_execute('DELETE FROM plugin_neighbor_vrf_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
+				db_execute('DELETE FROM plugin_neighbor_vrf_match_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
 			} elseif (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_GRAPH_DUPLICATE) { /* duplicate */
 				for ($i=0;($i<count($selected_items));$i++) {
 					cacti_log('form_actions duplicate: ' . $selected_items[$i] . ' name: ' . get_nfilter_request_var('name_format'), true, 'AUTOM8 TRACE', POLLER_VERBOSITY_MEDIUM);
@@ -210,7 +210,7 @@ function neighbor_rules_form_actions() {
 				for ($i=0;($i<count($selected_items));$i++) {
 					cacti_log('form_actions enable: ' . $selected_items[$i], true, 'AUTOM8 TRACE', POLLER_VERBOSITY_MEDIUM);
 
-					db_execute_prepared("UPDATE neighbor_rules
+					db_execute_prepared("UPDATE plugin_neighbor_vrf_rules
 						SET enabled='on'
 						WHERE id = ?",
 						array($selected_items[$i]));
@@ -219,7 +219,7 @@ function neighbor_rules_form_actions() {
 				for ($i=0;($i<count($selected_items));$i++) {
 					cacti_log('form_actions disable: ' . $selected_items[$i], true, 'AUTOM8 TRACE', POLLER_VERBOSITY_MEDIUM);
 
-					db_execute_prepared("UPDATE neighbor_rules
+					db_execute_prepared("UPDATE plugin_neighbor_vrf_rules
 						SET enabled=''
 						WHERE id = ?",
 						array($selected_items[$i]));
@@ -320,7 +320,7 @@ function neighbor_rules_item_movedown() {
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
 		move_item_down('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
-		move_item_down('neighbor_plugin__rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
+		move_item_down('plugin_neighbor_vrf_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
 }
 
@@ -334,7 +334,7 @@ function neighbor_rules_item_moveup() {
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
 		move_item_up('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
-		move_item_up('neighbor_plugin__rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
+		move_item_up('plugin_neighbor_vrf_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
 }
 
@@ -424,12 +424,12 @@ function neighbor_rules_remove() {
 	}
 
 	if ((read_config_option('deletion_verification') == '') || (isset_request_var('confirm'))) {
-		db_execute_prepared('DELETE FROM plugin_network__match_rule_items
+		db_execute_prepared('DELETE FROM plugin_neighbor_vrf_match_rule_items
 			WHERE rule_id = ?
 			AND rule_type = ?',
 			array(get_request_var('id'), AUTOMATION_RULE_TYPE_GRAPH_MATCH));
 
-		db_execute_prepared('DELETE FROM plugin_neighbor_plugin_rule_items
+		db_execute_prepared('DELETE FROM plugin_neighbor_vrf_rule_items
 			WHERE rule_id = ?',
 			array(get_request_var('id')));
 

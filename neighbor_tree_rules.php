@@ -200,9 +200,9 @@ function neighbor_tree_rules_form_actions() {
 			if (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_TREE_DELETE) { /* DELETE */
 				cacti_log('form_actions DELETE: ' . serialize($selected_items), true, 'AUTOM8 TRACE', POLLER_VERBOSITY_MEDIUM);
 
-				db_execute('DELETE FROM neighbor_tree_rules WHERE ' . array_to_sql_or($selected_items, 'id'));
-				db_execute('DELETE FROM neighbor_tree_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
-				db_execute('DELETE FROM neighbor_match_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
+				db_execute('DELETE FROM plugin_neighbor_tree_rules WHERE ' . array_to_sql_or($selected_items, 'id'));
+				db_execute('DELETE FROM plugin_neighbor_tree_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
+				db_execute('DELETE FROM plugin_neighbor_match_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
 			} elseif (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_TREE_DUPLICATE) { /* duplicate */
 				for ($i=0;($i<count($selected_items));$i++) {
 					cacti_log('form_actions duplicate: ' . $selected_items[$i], true, 'AUTOM8 TRACE', POLLER_VERBOSITY_MEDIUM);
@@ -213,13 +213,13 @@ function neighbor_tree_rules_form_actions() {
 				for ($i=0;($i<count($selected_items));$i++) {
 					cacti_log('form_actions enable: ' . $selected_items[$i], true, 'AUTOM8 TRACE', POLLER_VERBOSITY_MEDIUM);
 
-					db_execute_prepared("UPDATE neighbor_tree_rules SET enabled='on' WHERE id = ?", array($selected_items[$i]));
+					db_execute_prepared("UPDATE plugin_neighbor_tree_rules SET enabled='on' WHERE id = ?", array($selected_items[$i]));
 				}
 			} elseif (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_TREE_DISABLE) { /* disable */
 				for ($i=0;($i<count($selected_items));$i++) {
 					cacti_log('form_actions disable: ' . $selected_items[$i], true, 'AUTOM8 TRACE', POLLER_VERBOSITY_MEDIUM);
 
-					db_execute_prepared("UPDATE neighbor_tree_rules SET enabled='' WHERE id = ?", array($selected_items[$i]));
+					db_execute_prepared("UPDATE plugin_neighbor_tree_rules SET enabled='' WHERE id = ?", array($selected_items[$i]));
 				}
 			}
 		}
@@ -239,7 +239,7 @@ function neighbor_tree_rules_form_actions() {
 			input_validate_input_number($matches[1]);
 			/* ==================================================== */
 
-			$neighbor_tree_rules_list .= '<li>' . db_fetch_cell_prepared('SELECT name FROM neighbor_tree_rules WHERE id = ?', array($matches[1])) . '</li>';
+			$neighbor_tree_rules_list .= '<li>' . db_fetch_cell_prepared('SELECT name FROM plugin_neighbor_tree_rules WHERE id = ?', array($matches[1])) . '</li>';
 			$neighbor_tree_rules_array[] = $matches[1];
 		}
 	}
@@ -344,9 +344,9 @@ function neighbor_tree_rules_item_remove() {
 	/* ==================================================== */
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_TREE_MATCH) {
-		db_execute_prepared('DELETE FROM neighbor_match_rule_items WHERE id = ?', array(get_request_var('item_id')));
+		db_execute_prepared('DELETE FROM plugin_neighbor_match_rule_items WHERE id = ?', array(get_request_var('item_id')));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_TREE_ACTION) {
-		db_execute_prepared('DELETE FROM neighbor_tree_rule_items WHERE id = ?', array(get_request_var('item_id')));
+		db_execute_prepared('DELETE FROM plugin_neighbor_tree_rule_items WHERE id = ?', array(get_request_var('item_id')));
 	}
 
 
@@ -471,22 +471,22 @@ function neighbor_tree_rules_remove() {
 
 	if ((read_config_option('deletion_verification') == 'on') && (!isset_request_var('confirm'))) {
 		top_header();
-		form_confirm(__('Are You Sure?'), __("Are you sure you want to DELETE the Rule '%s'?", db_fetch_cell_prepared('SELECT name FROM neighbor_tree_rules WHERE id = ?', array(get_request_var('id')))), 'neighbor_tree_rules.php', 'neighbor_tree_rules.php?action=remove&id=' . get_request_var('id'));
+		form_confirm(__('Are You Sure?'), __("Are you sure you want to DELETE the Rule '%s'?", db_fetch_cell_prepared('SELECT name FROM plugin_neighbor_tree_rules WHERE id = ?', array(get_request_var('id')))), 'neighbor_tree_rules.php', 'neighbor_tree_rules.php?action=remove&id=' . get_request_var('id'));
 		bottom_footer();
 		exit;
 	}
 
 	if ((read_config_option('deletion_verification') == '') || (isset_request_var('confirm'))) {
-		db_execute_prepared('DELETE FROM neighbor_match_rule_items
+		db_execute_prepared('DELETE FROM plugin_neighbor_match_rule_items
 			WHERE rule_id = ?
 			AND rule_type = ?',
 			array(get_request_var('id'), AUTOMATION_RULE_TYPE_TREE_MATCH));
 
-		db_execute_prepared('DELETE FROM neighbor_tree_rule_items
+		db_execute_prepared('DELETE FROM plugin_neighbor_tree_rule_items
 			WHERE rule_id = ?',
 			array(get_request_var('id')));
 
-		db_execute_prepared('DELETE FROM neighbor_tree_rules
+		db_execute_prepared('DELETE FROM plugin_neighbor_tree_rules
 			WHERE id = ?',
 			array(get_request_var('id')));
 	}
@@ -811,7 +811,7 @@ function neighbor_tree_rules() {
 	}
 
 	$total_rows = db_fetch_cell("SELECT COUNT(atr.id)
-		FROM neighbor_tree_rules AS atr
+		FROM plugin_neighbor_tree_rules AS atr
 		LEFT JOIN graph_tree AS gt
 		ON atr.id=gt.id
 		$sql_where");
@@ -822,7 +822,7 @@ function neighbor_tree_rules() {
 	$neighbor_tree_rules = db_fetch_assoc("SELECT atr.id, atr.name, atr.tree_id, atr.tree_item_id,
 		atr.leaf_type, atr.host_grouping_type, atr.enabled,
 		gt.name AS tree_name, gti.title AS subtree_name
-		FROM neighbor_tree_rules AS atr
+		FROM plugin_neighbor_tree_rules AS atr
 		LEFT JOIN graph_tree AS gt
 		ON atr.tree_id=gt.id
 		LEFT JOIN graph_tree_items AS gti
