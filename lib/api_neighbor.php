@@ -1015,176 +1015,245 @@ function neighbor_rule_to_json($rule_id) {
 	}
 }
 
-
-
-function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
-	
-	$rule_id = $rule_id 					? $rule_id  				: (isset_request_var('rule_id') ? get_request_var('rule_id') 	: '');
-	$ajax 	= isset_request_var('ajax') 	? get_request_var('ajax') 	: $ajax;
-	$format = isset_request_var('format') 	? get_request_var('format') : $format;
-	$last_seen = isset_request_var('last_seen') ? get_request_var('last_seen') : "";
-	$host_filter = isset_request_var('host_filter') ? get_request_var('host_filter') : "";
-	$edge_filter = isset_request_var('edge_filter') ? get_request_var('edge_filter') : "";
-	$host_filter = "";
-		
-	$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_rules WHERE id = ?',array($rule_id));
-	$sql_query = neighbor_build_data_query_sql($rule,$host_filter,$edge_filter);
+/**
+ * Get neighbor objects organized by hostname, neighbor hostname, and interface
+ * 
+ * @param int $rule_id Rule ID
+ * @param string $host_filter Host filter
+ * @param string $edge_filter Edge filter
+ * 
+ * @return array Nested array of neighbor objects
+ */
+function get_neighbor_objects_by_rule($rule_id, $host_filter = '', $edge_filter = '') {
+	$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_rules WHERE id = ?', array($rule_id));
+	$sql_query = neighbor_build_data_query_sql($rule, $host_filter, $edge_filter);
 	$results = db_fetch_assoc($sql_query);
-	$neighbor_objects = db_fetch_hash($results,array('hostname','neighbor_hostname','interface_name'));			 // Organise the results into a tree
-	
-	// Get the unique hosts from the results so that we can query the site data for GPS.
+	return db_fetch_hash($results, array('hostname', 'neighbor_hostname', 'interface_name'));
+}
+
+/**
+ * Extract unique host IDs from neighbor objects
+ * 
+ * @param array $neighbor_objects Nested neighbor objects array
+ * 
+ * @return array Array of unique host IDs
+ */
+function extract_unique_hosts_from_neighbors($neighbor_objects) {
 	$hosts_arr = array();
 	foreach ($neighbor_objects as $h1 => $rec1) {
-		foreach ($rec1 as $h2 => $rec2 ) {
+		foreach ($rec1 as $h2 => $rec2) {
 			foreach ($rec2 as $interface => $rec3) {
 				$hosts_arr[$rec3['host_id']] = 1;
 				$hosts_arr[$rec3['neighbor_host_id']] = 1;
 			}
 		}
- 	}
-	
-	$hosts_arr = array_keys($hosts_arr);
-	$sites = get_site_coords($hosts_arr);
-	
-	// Create the visjs nodes array
-	$nodes = [];
-	$projected = [];
-	$data = [];
-	
-	// We need the resolution to map the coords from earth to box
-	$res_x = isset_request_var('res_x') ? get_request_var('res_x') 	: 1280;
-	$res_y = isset_request_var('res_y') ? get_request_var('res_y') 	: 1080;
-	
-	$min_x = -1;
-	$min_y = -1;
+	}
+	return array_keys($hosts_arr);
+}
 
-	// First check if we have a stored map for this user
+/**
+ * Get stored map positions for a user and rule
+ * 
+ * @param int $user_id User ID
+ * @param int $rule_id Rule ID
+ * 
+ * @return array Array of stored positions and random seed
+ */
+function get_stored_map_positions($user_id, $rule_id) {
+	$stored_data = array('nodes' => array(), 'seed' => null);
 	
-	$user_id = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : 0;
-	error_log("Looking for saved map positions for user: $user_id, map: $rule_id");
-	$stored_map = array();
 	$has_user_map_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_user_map'");
-	if ($has_user_map_table) {
-		$stored_map = db_fetch_assoc_prepared("SELECT * from plugin_neighbor_user_map where user_id=? AND rule_id=?",array($user_id,$rule_id));
+	if (!$has_user_map_table) {
+		return $stored_data;
 	}
-
-	if (!is_array($stored_map)) {
-		$stored_map = array();
-	}
-
-	if (count($stored_map)) {
-
-			foreach ($stored_map as $row) {
-				// error_log("Using saved coordinates:".print_r($row,true));		
-				$projected[] = array(
-					'id' 	=> $row['item_id'],
-					'label' => $row['item_label'],
-					'x'		=> $row['item_x'],
-					'y'		=> $row['item_y'],
-					'mass'	=> 2,
-					'physics' => false
-				);
-				$data['seed'] = (int) $row['random_seed'];
-			}
-			$data['physics'] = true;
-			//error_log("Nodes[]: ".print_r($projected,true));
-	}
-	else {
 	
-		foreach ($hosts_arr as $host_id ) {
-				
-				$label = isset($sites[$host_id]['description']) ? $sites[$host_id]['description'] 	: "";
-				$lat = isset($sites[$host_id]['latitude']) ? $sites[$host_id]['latitude'] : "";
-				$lng = isset($sites[$host_id]['longitude']) ? $sites[$host_id]['longitude'] : "";
-				
-				$screen_coords = degrees_to_screen($lat,$lng,$res_x,$res_y);
-				$x = $screen_coords['x'];
-				$y = $screen_coords['y'];
-				$min_x = $min_x == -1 ? $x : min($min_x,$x);
-				$min_y = $min_y == -1 ? $y : min($min_y,$y);
-				error_log("$label: $res_x,$res_y => $lat,$lng => $x, $y");
+	$stored_map = db_fetch_assoc_prepared(
+		"SELECT * FROM plugin_neighbor_user_map WHERE user_id=? AND rule_id=?",
+		array($user_id, $rule_id)
+	);
 	
-				$mass = preg_match("/PTN|HLC/",$label) ? 5 : 1;
-				$nodes[] = array(
-					'id' 	=> $host_id,
-					'label' => $label,
-					'x'		=> $x,
-					'y'		=> $y,
-					//'mass'	=> $mass,
-				);
-				
-				// Now we need to project these onto the screen resolution surface to get a more natural looking map
-		}
+	if (!is_array($stored_map) || count($stored_map) == 0) {
+		return $stored_data;
+	}
+	
+	foreach ($stored_map as $row) {
+		$stored_data['nodes'][] = array(
+			'id'      => $row['item_id'],
+			'label'   => $row['item_label'],
+			'x'       => $row['item_x'],
+			'y'       => $row['item_y'],
+			'mass'    => 2,
+			'physics' => false
+		);
+		$stored_data['seed'] = (int) $row['random_seed'];
+	}
+	
+	return $stored_data;
+}
+
+/**
+ * Create map nodes from host array and site coordinates
+ * 
+ * @param array $hosts_arr Array of host IDs
+ * @param array $sites Site coordinates array
+ * @param int $res_x Screen resolution width
+ * @param int $res_y Screen resolution height
+ * 
+ * @return array Array of projected nodes
+ */
+function create_map_nodes_from_hosts($hosts_arr, $sites, $res_x, $res_y) {
+	$nodes = array();
+	
+	foreach ($hosts_arr as $host_id) {
+		$label = isset($sites[$host_id]['description']) ? $sites[$host_id]['description'] : '';
+		$lat = isset($sites[$host_id]['latitude']) ? $sites[$host_id]['latitude'] : '';
+		$lng = isset($sites[$host_id]['longitude']) ? $sites[$host_id]['longitude'] : '';
 		
-		$projected = project_nodes($nodes,$res_x,$res_y,0);
+		$screen_coords = degrees_to_screen($lat, $lng, $res_x, $res_y);
+		$x = $screen_coords['x'];
+		$y = $screen_coords['y'];
+		
+		error_log("$label: $res_x,$res_y => $lat,$lng => $x, $y");
+		
+		$nodes[] = array(
+			'id'    => $host_id,
+			'label' => $label,
+			'x'     => $x,
+			'y'     => $y,
+		);
 	}
 	
-	// Create the edges next
+	return project_nodes($nodes, $res_x, $res_y, 0);
+}
+
+/**
+ * Create map edges from neighbor objects with poller data
+ * 
+ * @param array $neighbor_objects Nested neighbor objects
+ * @param array $sites Site coordinates
+ * @param int $rule_id Rule ID
+ * @param array $edge_data Edge poller data
+ * 
+ * @return array Array of edges
+ */
+function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $edge_data) {
 	$edges = array();
-	$edge_data = get_edges_poller($rule_id);
-	$seen = [];
-	$interface_data_template_id = get_data_template("Interface - Traffic");
-	$interface_graph_template_id = get_graph_template("Interface - Traffic (bits/sec)");
+	$seen = array();
+	$interface_data_template_id = get_data_template('Interface - Traffic');
+	$interface_graph_template_id = get_graph_template('Interface - Traffic (bits/sec)');
+	
 	foreach ($neighbor_objects as $h1 => $rec1) {
-		foreach ($rec1 as $h2 => $rec2 ) {
+		foreach ($rec1 as $h2 => $rec2) {
 			foreach ($rec2 as $interface => $rec3) {
-				
-				$neighbor_hash = isset($rec3['neighbor_hash']) ? $rec3['neighbor_hash'] : "";
-				if (isset($seen[$neighbor_hash])) { continue; }	// We only want one edge per pair
+				$neighbor_hash = isset($rec3['neighbor_hash']) ? $rec3['neighbor_hash'] : '';
+				if (isset($seen[$neighbor_hash])) {
+					continue;
+				}
 				$seen[$neighbor_hash] = 1;
 				
 				$from = $rec3['host_id'];
 				$to = $rec3['neighbor_host_id'];
 				$site_a = $sites[$from];
 				$site_b = $sites[$to];
-				$coords_a = sprintf("%s,%s",$site_a['latitude'],$site_a['longitude']);
-				$coords_b = sprintf("%s,%s",$site_b['latitude'],$site_b['longitude']);
-				$length = get_distance($coords_a,$coords_b) /1000;
-				if ($length < 15) { $length = $length * 1.5;}
-				//$label = get_speed_label($rec3['interface_speed']) . " (".sprintf("%.1f",$length)."km)";
+				$coords_a = sprintf('%s,%s', $site_a['latitude'], $site_a['longitude']);
+				$coords_b = sprintf('%s,%s', $site_b['latitude'], $site_b['longitude']);
+				$length = get_distance($coords_a, $coords_b) / 1000;
+				
+				if ($length < 15) {
+					$length = $length * 1.5;
+				}
+				
 				$label = get_speed_label($rec3['interface_speed']);
-				$title = sprintf("%s - %s to %s - %s", $rec3['hostname'], $rec3['interface_name'], $rec3['neighbor_hostname'],$rec3['neighbor_interface_name']);
+				$title = sprintf('%s - %s to %s - %s',
+					$rec3['hostname'],
+					$rec3['interface_name'],
+					$rec3['neighbor_hostname'],
+					$rec3['neighbor_interface_name']
+				);
 				
-				//$value_scaled = log_scale($rec3['interface_speed']);
-				$rrd_file = get_rra_file($from,$rec3['snmp_id'],$interface_data_template_id);
+				$rrd_file = get_rra_file($from, $rec3['snmp_id'], $interface_data_template_id);
+				$graph_local_id = get_interface_graph_local($from, $rec3['snmp_id'], $interface_graph_template_id);
+				$poller_json = isset($edge_data[$from][$to][$rrd_file]) ? $edge_data[$from][$to][$rrd_file] : '{}';
 				
-				$graph_local_id = get_interface_graph_local($from,$rec3['snmp_id'],$interface_graph_template_id);
-				$rec3['graph_local_id'] = $graph_local_id;
-				
-				$poller_json = isset($edge_data[$from][$to][$rrd_file]) ? $edge_data[$from][$to][$rrd_file] : "{}";
-				// Store the edge
 				$edges[] = array(
-					'from' 	=> $from,
-					'to'	=> $to,
-					'label'	=> $label,
-					'title'	=> $title,
-					'smooth'=> true,
-					'poller' => $poller_json,
-					'rrd_file'=> $rrd_file,
-					'graph_id'=> $graph_local_id,
-					'value'	=> $rec3['interface_speed'],
+					'from'      => $from,
+					'to'        => $to,
+					'label'     => $label,
+					'title'     => $title,
+					'smooth'    => true,
+					'poller'    => $poller_json,
+					'rrd_file'  => $rrd_file,
+					'graph_id'  => $graph_local_id,
+					'value'     => $rec3['interface_speed'],
 					'last_seen' => $rec3['last_seen']
-					//'length'=> $length
 				);
 			}
 		}
- 	}
-	// We need to store the edges into a DB so we can integrate the poller_output values, RRD files etc. etc.
-	update_edges_db($rule_id,$edges);
+	}
+	
+	return $edges;
+}
 
+
+/**
+ * Generate interface network map nodes and edges with visualization data
+ * 
+ * Main orchestrator function that coordinates map generation from neighbor data
+ * 
+ * @param int|string $rule_id Rule ID
+ * @param bool $ajax Whether this is an AJAX request
+ * @param string $format Output format (json or jsonp)
+ * 
+ * @return string|void JSON response or void if ajax is true
+ */
+function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
+	// Retrieve and validate parameters
+	$rule_id = $rule_id ? $rule_id : (isset_request_var('rule_id') ? get_request_var('rule_id') : '');
+	$ajax = isset_request_var('ajax') ? get_request_var('ajax') : $ajax;
+	$format = isset_request_var('format') ? get_request_var('format') : $format;
+	$host_filter = isset_request_var('host_filter') ? get_request_var('host_filter') : '';
+	$edge_filter = isset_request_var('edge_filter') ? get_request_var('edge_filter') : '';
+	$res_x = isset_request_var('res_x') ? get_request_var('res_x') : 1280;
+	$res_y = isset_request_var('res_y') ? get_request_var('res_y') : 1080;
+	$user_id = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : 0;
+	
+	// Get neighbor objects and extract unique hosts
+	$neighbor_objects = get_neighbor_objects_by_rule($rule_id, $host_filter, $edge_filter);
+	$hosts_arr = extract_unique_hosts_from_neighbors($neighbor_objects);
+	$sites = get_site_coords($hosts_arr);
+	
+	// Check for stored map positions or generate new ones
+	error_log("Looking for saved map positions for user: $user_id, map: $rule_id");
+	$stored_data = get_stored_map_positions($user_id, $rule_id);
+	
+	if (count($stored_data['nodes']) > 0) {
+		$projected = $stored_data['nodes'];
+		$data['seed'] = $stored_data['seed'];
+		$data['physics'] = true;
+	} else {
+		$projected = create_map_nodes_from_hosts($hosts_arr, $sites, $res_x, $res_y);
+	}
+	
+	// Create edges with poller data
+	$edge_data = get_edges_poller($rule_id);
+	$edges = create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $edge_data);
+	
+	// Store edges in database for poller integration
+	update_edges_db($rule_id, $edges);
+	
+	// Prepare and return JSON response
 	$query_callback = get_request_var('callback', 'Callback');
 	$data['nodes'] = $projected;
 	$data['edges'] = $edges;
 	
-	$jsonp = sprintf("%s({\"Response\":[%s]})", $query_callback,json_encode($data,JSON_PRETTY_PRINT));	
-	$json  = json_encode($data, JSON_PRETTY_PRINT);
+	$jsonp = sprintf('%s({"Response":[%s]})', $query_callback, json_encode($data, JSON_PRETTY_PRINT));
+	$json = json_encode($data, JSON_PRETTY_PRINT);
 	
-	if ($ajax) 	{
+	if ($ajax) {
 		header('Content-Type: application/json');
 		print $format == 'jsonp' ? $jsonp : $json;
-	}
-	else {
-		return($json);
+	} else {
+		return $json;
 	}
 }
 
