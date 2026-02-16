@@ -56,6 +56,9 @@ switch(get_request_var('action')) {
 	case 'xdp':
 		render_neighbor_page('show_xdp_neighbors');
 		break;
+	case 'neighbor_routing':
+		render_neighbor_page('display_routing_neighbors');
+		break;
 	case 'ajax_hosts':
 	case 'ajax_hosts_noany':
 		get_allowed_ajax_hosts(true, false, 'h.id IN (SELECT host_id FROM plugin_neighbor_xdp)');
@@ -102,6 +105,32 @@ function display_neighbors() {
 	printf("<link rel='stylesheet' type='text/css' href='%s'>\n", 'css/ionicons.min.css');
 	printf("<script type='text/javascript' src='%s'></script>\n", 'js/tables_interface.js');
 	printf("<script type='text/javascript' src='%s'></script>\n", 'js/tables_' . $neighbor_type . '.js');
+}
+
+/**
+ * Display routing protocol neighbors page
+ * 
+ * Renders the routing neighbors view showing OSPF, BGP, and IS-IS neighbor relationships.
+ * 
+ * @return void Outputs HTML placeholder content
+ */
+function display_routing_neighbors() {
+	html_start_box(__('Routing Protocol Neighbors', 'neighbor'), '100%', '', '3', 'center', '');
+	
+	print '<tr><td>';
+	print '<div style="padding: 20px; text-align: center;">';
+	print '<h3>' . __('Routing Protocol Neighbor Discovery', 'neighbor') . '</h3>';
+	print '<p>' . __('This feature displays neighbors discovered via routing protocols:', 'neighbor') . '</p>';
+	print '<ul style="text-align: left; display: inline-block;">';
+	print '<li>' . __('OSPF (Open Shortest Path First)', 'neighbor') . '</li>';
+	print '<li>' . __('BGP (Border Gateway Protocol)', 'neighbor') . '</li>';
+	print '<li>' . __('IS-IS (Intermediate System to Intermediate System)', 'neighbor') . '</li>';
+	print '</ul>';
+	print '<p><em>' . __('Note: Routing protocol discovery must be enabled in Settings and configured on your devices.', 'neighbor') . '</em></p>';
+	print '</div>';
+	print '</td></tr>';
+	
+	html_end_box();
 }
 
 // Summary Action
