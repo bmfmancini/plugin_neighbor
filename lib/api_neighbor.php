@@ -1577,10 +1577,28 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
 				
 				$from = $rec3['host_id'];
 				$to = $rec3['neighbor_host_id'];
+				
+				// Validate that sites exist and have coordinates
+				if (!isset($sites[$from]) || !isset($sites[$to])) {
+					continue;
+				}
+				
 				$site_a = $sites[$from];
 				$site_b = $sites[$to];
-				$coords_a = sprintf('%s,%s', $site_a['latitude'], $site_a['longitude']);
-				$coords_b = sprintf('%s,%s', $site_b['latitude'], $site_b['longitude']);
+				
+				// Check if coordinates are valid (not null/empty)
+				$lat_a = isset($site_a['latitude']) && $site_a['latitude'] !== null && $site_a['latitude'] !== '' ? $site_a['latitude'] : null;
+				$lon_a = isset($site_a['longitude']) && $site_a['longitude'] !== null && $site_a['longitude'] !== '' ? $site_a['longitude'] : null;
+				$lat_b = isset($site_b['latitude']) && $site_b['latitude'] !== null && $site_b['latitude'] !== '' ? $site_b['latitude'] : null;
+				$lon_b = isset($site_b['longitude']) && $site_b['longitude'] !== null && $site_b['longitude'] !== '' ? $site_b['longitude'] : null;
+				
+				// Skip if any coordinate is missing
+				if ($lat_a === null || $lon_a === null || $lat_b === null || $lon_b === null) {
+					continue;
+				}
+				
+				$coords_a = sprintf('%s,%s', $lat_a, $lon_a);
+				$coords_b = sprintf('%s,%s', $lat_b, $lon_b);
 				$length = get_distance($coords_a, $coords_b) / 1000;
 				
 				if ($length < 15) {
@@ -1896,6 +1914,11 @@ function get_distance($a,$b) {
 
         list($lat1,$lon1) = explode(",",$a);
         list($lat2,$lon2) = explode(",",$b);
+		
+		// Validate that coordinates are numeric
+		if (!is_numeric($lat1) || !is_numeric($lon1) || !is_numeric($lat2) || !is_numeric($lon2)) {
+			return 0;
+		}
 
         $p = pi() / 180;
         $calc = 0.5 - cos(($lat2 - $lat1) * $p)/2 + cos($lat1 * $p) * cos($lat2 * $p) * (1 - cos(($lon2 - $lon1) * $p))/2;
