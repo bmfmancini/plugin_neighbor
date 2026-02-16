@@ -24,10 +24,16 @@
 */
 
 
-//include_once($config['base_path'] . '/include/auth.php');
 include_once($config['base_path'] . '/lib/data_query.php');
-//include_once('./plugins/neighbor/lib/neighbor_functions.php');
 
+/**
+ * Register plugin hooks and initialize plugin during installation
+ * 
+ * Sets up all necessary hooks for configuration, device management, and polling.
+ * Creates database tables and registers plugin realms for access control.
+ * 
+ * @return void
+ */
 function plugin_neighbor_install () {
 	
 	global $config;
@@ -57,6 +63,13 @@ function plugin_neighbor_install () {
 	neighbor_setup_table ();
 }
 
+/**
+ * Clean up plugin resources during uninstallation
+ * 
+ * Drops all plugin database tables. Settings are automatically removed by Cacti.
+ * 
+ * @return void
+ */
 function plugin_neighbor_uninstall () {
 	
 	// Drop all plugin tables
@@ -81,24 +94,54 @@ function plugin_neighbor_uninstall () {
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_vrf_match_rule_items`');
 }
 
+/**
+ * Verify plugin configuration is valid
+ * 
+ * Runs upgrade check to ensure database schema is current.
+ * 
+ * @return bool Always returns true
+ */
 function plugin_neighbor_check_config () {
 	// Here we will check to ensure everything is configured
 	neighbor_check_upgrade ();
 	return true;
 }
 
+/**
+ * Handle plugin upgrades
+ * 
+ * Triggers upgrade check to apply any necessary database schema changes.
+ * 
+ * @return bool Always returns true
+ */
 function plugin_neighbor_upgrade () {
 	// Here we will upgrade to the newest version
 	neighbor_check_upgrade ();
 	return true;
 }
 
+/**
+ * Get plugin version information
+ * 
+ * Reads version details from the INFO file.
+ * 
+ * @return array Plugin information from INFO file
+ */
 function plugin_neighbor_version () {
 	global $config;
 	$info = parse_ini_file($config['base_path'] . '/plugins/neighbor/INFO', true);
 	return $info['info'];
 }
 
+/**
+ * Check and perform database schema upgrades
+ * 
+ * Compares installed version with current version and creates/updates
+ * database tables as needed. Only runs on specific plugin pages to avoid
+ * unnecessary overhead.
+ * 
+ * @return void
+ */
 function neighbor_check_upgrade () {
 
 	global $config, $database_default;
@@ -158,10 +201,23 @@ function neighbor_check_upgrade () {
 	}
 }
 
+/**
+ * Check for required plugin dependencies
+ * 
+ * @return bool Always returns true (no dependencies required)
+ */
 function neighbor_check_dependencies() {
 	return true;
 }
 
+/**
+ * Execute neighbor discovery during poller cycle
+ * 
+ * Processes poller deltas and launches the neighbor discovery script.
+ * Called by Cacti's poller_bottom hook.
+ * 
+ * @return void
+ */
 function neighbor_poller_bottom() {
 
 	global $config;
@@ -170,6 +226,15 @@ function neighbor_poller_bottom() {
 	exec_background(read_config_option('path_php_binary'), ' -q ' . $config['base_path'] . '/plugins/neighbor/poller_neighbor.php -M');
 }
 
+/**
+ * Register plugin configuration settings
+ * 
+ * Defines all configuration options available in Cacti's settings page for
+ * neighbor discovery, including protocol selection, polling frequency, and
+ * subnet correlation settings.
+ * 
+ * @return void
+ */
 function neighbor_config_settings () {
 
 	global $tabs, $settings, $neighbor_frequencies, $item_rows;
@@ -303,6 +368,14 @@ function neighbor_config_settings () {
 		);
 }
 
+/**
+ * Register plugin arrays and menu items
+ * 
+ * Sets up frequency options, menu entries under Automation, and triggers
+ * upgrade checks. Called by Cacti's config_arrays hook.
+ * 
+ * @return void
+ */
 function neighbor_config_arrays() {
 	global $menu, $messages, $neighbor_frequencies, $menu_glyphs;
 
@@ -340,6 +413,14 @@ function neighbor_config_arrays() {
 	neighbor_check_upgrade();
 }
 
+/**
+ * Add plugin navigation breadcrumbs
+ * 
+ * Registers navigation text for the neighbor plugin pages.
+ * 
+ * @param array $nav Existing navigation array
+ * @return array Updated navigation array
+ */
 function neighbor_draw_navigation_text ($nav) {
 	$nav['neighbor.php:']          = array('title' => __('Neighbor Summary'), 'mapping' => '', 'url' => 'neighbor.php', 'level' => '0');
 	$nav['neighbor.php:summary']   = array('title' => __('Neighbor Summary'), 'mapping' => '', 'url' => 'neighbor.php', 'level' => '0');
@@ -353,6 +434,13 @@ function neighbor_draw_navigation_text ($nav) {
 	return $nav;
 }
 
+/**
+ * Display neighbor plugin tab in Cacti header
+ * 
+ * Shows the neighbor tab with appropriate active/inactive graphics.
+ * 
+ * @return void Outputs HTML img tag
+ */
 function neighbor_show_tab() {
 	global $config;
 
@@ -365,8 +453,14 @@ function neighbor_show_tab() {
 	}
 }
 
-// Credits - Sourced and modified from Monitor Plugin Code
-
+/**
+ * Add neighbor discovery settings to host edit form
+ * 
+ * Injects neighbor discovery configuration checkboxes into the device
+ * edit form, allowing per-host control of discovery protocols.
+ * 
+ * @return void Modifies global $fields_host_edit array
+ */
 function neighbor_config_form () {
         global $fields_host_edit, $criticalities, $config;
 		include_once($config['base_path'] . '/plugins/neighbor/lib/neighbor_sql_tables.php');
@@ -478,12 +572,26 @@ function neighbor_config_form () {
         $fields_host_edit = $fields_host_edit3;
 }
 
+/**
+ * Add neighbor discovery actions to device action dropdown
+ * 
+ * @param array $device_action_array Existing device actions
+ * @return array Updated device actions with neighbor options
+ */
 function neighbor_device_action_array($device_action_array) {
         $device_action_array['neighbor_settings'] = __('Change Neighbor Options', 'neighbor');
         return $device_action_array;
 }
 
-
+/**
+ * Execute bulk device actions for neighbor discovery
+ * 
+ * Handles enable/disable actions and bulk settings changes for neighbor
+ * discovery on multiple devices.
+ * 
+ * @param string $action Action to execute
+ * @return string Action name to allow pass-through to other handlers
+ */
 function neighbor_device_action_execute($action) {
         global $config, $fields_host_edit;
 		include_once($config['base_path'] . '/plugins/neighbor/lib/neighbor_sql_tables.php');
@@ -531,7 +639,15 @@ function neighbor_device_action_execute($action) {
         return $action;
 }
 
-
+/**
+ * Prepare device action form for neighbor discovery settings
+ * 
+ * Displays the bulk edit form for changing neighbor discovery settings
+ * on multiple devices simultaneously.
+ * 
+ * @param array $save Save data including action and selected devices
+ * @return array Unmodified save data
+ */
 function neighbor_device_action_prepare($save) {
         global $host_list, $fields_host_edit;
 
@@ -596,6 +712,15 @@ function neighbor_device_action_prepare($save) {
         }
 }
 
+/**
+ * Save neighbor discovery settings when device is saved
+ * 
+ * Validates and stores neighbor discovery settings in plugin_neighbor_host table
+ * when a device is created or updated.
+ * 
+ * @param array $save Device save data
+ * @return array Unmodified save data to allow other hooks to process
+ */
 function neighbor_api_device_save($save) {
 	global $config;
 	include_once($config['base_path'] . '/plugins/neighbor/lib/neighbor_sql_tables.php');
@@ -625,14 +750,20 @@ function neighbor_api_device_save($save) {
 	// Save to plugin_neighbor_host table if we have a host_id
 	if (isset($save['id']) && $save['id'] > 0) {
 		neighbor_save_host_settings($save['id'], $settings);
-		error_log("NEIGHBOR: Saved settings for host_id=" . $save['id'] . ": " . print_r($settings, 1));
 	}
 	
 	return $save;
 }
 
-
-
+/**
+ * Clean up neighbor data when devices are deleted
+ * 
+ * Removes all neighbor discovery data and settings for deleted devices.
+ * Uses prepared statements to prevent SQL injection.
+ * 
+ * @param array $devices Array of device IDs to remove
+ * @return array Unmodified device array to allow other hooks to process
+ */
 function neighbor_device_remove($devices) {
 	if (!is_array($devices) || count($devices) == 0) {
 		return $devices;
