@@ -1255,26 +1255,26 @@ if(!function_exists("array_replace")){
 
 function snipToDots($str,$len) {
     
-    if(strlen($str)<=$len) { return "<span>$str</span>";}
-    else {
-        $snip = strlen($str) > $len ? substr($str,0,$len)."..." : $str;
-	return "<span title='$str'> $snip </span>";
-    }
+	if(strlen($str)<=$len) { return "<span>" . htmlspecialchars($str, ENT_QUOTES, 'UTF-8') . "</span>";}
+	else {
+		$snip = strlen($str) > $len ? substr($str,0,$len)."..." : $str;
+		return "<span title='" . htmlspecialchars($str, ENT_QUOTES, 'UTF-8') . "'> " . htmlspecialchars($snip, ENT_QUOTES, 'UTF-8') . " </span>";
+	}
 }
 
 function pre_print_r($arr,$tag = '',$print = true) {
     
 		if ($print) {
 			print "<pre>";
-			if ($tag) { print "$tag\n";}
-			print_r($arr);
+			if ($tag) { print htmlspecialchars($tag, ENT_QUOTES, 'UTF-8') . "\n";}
+			print htmlspecialchars(print_r($arr, true), ENT_QUOTES, 'UTF-8');
 			print "</pre>";
 		}
 		else {
 			$buffer = print_r($arr,true);
 			$ret = "";
 			foreach (explode("\n",$buffer) as $line) {
-						$ret.= $tag ? "$tag: ".$line."\n" : "$line\n";
+				$ret .= $tag ? htmlspecialchars($tag, ENT_QUOTES, 'UTF-8') . ": " . htmlspecialchars($line, ENT_QUOTES, 'UTF-8') . "\n" : htmlspecialchars($line, ENT_QUOTES, 'UTF-8') . "\n";
 			}
 			return($ret);
 		}
