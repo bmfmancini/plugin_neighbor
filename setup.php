@@ -367,6 +367,24 @@ function neighbor_config_form () {
         global $fields_host_edit, $criticalities;
 
 	if (!neighbor_host_discovery_columns_ready()) {
+		$fields = array(
+			'neighbor_discover_enable',
+			'neighbor_discover_cdp',
+			'neighbor_discover_lldp',
+			'neighbor_discover_ip',
+			'neighbor_discover_switching',
+			'neighbor_discover_ifalias',
+			'neighbor_discover_ospf',
+			'neighbor_discover_bgp',
+			'neighbor_discover_isis',
+		);
+
+		foreach ($fields as $field) {
+			if (isset($fields_host_edit[$field])) {
+				unset($fields_host_edit[$field]);
+			}
+		}
+
 		return;
 	}
 
@@ -579,10 +597,6 @@ function neighbor_device_action_prepare($save) {
 }
 
 function neighbor_api_device_save($save) {
-		if (!neighbor_host_discovery_columns_ready()) {
-				return $save;
-		}
-
 		 $fields = array(
                         'neighbor_discover_enable',
                         'neighbor_discover_cdp',
@@ -594,6 +608,16 @@ function neighbor_api_device_save($save) {
                         'neighbor_discover_bgp',
                         'neighbor_discover_isis',
         );
+
+		foreach ($fields as $field) {
+				if (isset($save[$field])) {
+						unset($save[$field]);
+				}
+		}
+
+		if (!neighbor_host_discovery_columns_ready()) {
+				return $save;
+		}
 		
 		foreach ($fields as $field) { 
 			if (isset_request_var($field)) {
