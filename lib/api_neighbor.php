@@ -182,12 +182,7 @@ function neighbor_global_item_edit($rule_id, $rule_item_id, $rule_type) {
 			FROM plugin_neighbor_rules
 			WHERE id = ?',
 			array($rule_id));
-		
-		pre_print_r($neighbor_rule,"Oink:");
-		
-		$neighbor_options = isset($neighbor_rule['neighbor_options']) ? explode(",",$neighbor_rule['neighbor_options']) : array();
-		
-		
+
 		$_fields_rule_item_edit = $fields_neighbor_graph_rule_item_edit;
 		$fields = array();
 		foreach ($neighbor_options as $opt) {
@@ -303,9 +298,6 @@ function neighbor_global_item_edit($rule_id, $rule_item_id, $rule_type) {
 
 
 function neighbor_display_matching_hosts($rule, $rule_type, $url) {
-	
-	print "<pre> RULE: $rule\n</pre>";
-	
 	global $device_actions, $item_rows;
 
 	if (isset_request_var('cleard')) {
@@ -929,11 +921,6 @@ function neighbor_display_new_graphs($rule, $url) {
 			$sql_query = neighbor_build_data_query_sql($rule);
 		}
 		
-			print "neighbor_display_new_graphs() sql_query: $sql_query";
-		//$count_query = preg_replace('/SELECT .+ FROM/', 'SELECT COUNT(1) as a FROM',$sql_query);
-		//$total_rows = db_fetch_cell("$count_query", '', false);
-		//print "$count_query: $count_query<br>Rows: $total_rows<br>";
-		//$sql_query = $sql_query . ' LIMIT ' . ($rows*(get_request_var('page')-1)) . ',' . $rows;
 		$start_rec = $rows*(get_request_var('page')-1);
 		$all_neighbor_objects = db_fetch_assoc($sql_query);
 		$all_neighbor_objects = dedup_by_hash($all_neighbor_objects);
@@ -952,10 +939,8 @@ function neighbor_display_new_graphs($rule, $url) {
 			$display_text[$field][1] = "ASC";
 			$field_names[] = $field;
 		}
-		//pre_print_r($display_text,"Display:");
 
 		html_header_sort($display_text,$sort_column,$sort_direction,'',$config['url_path']."plugins/neighbor/neighbor_rules.php?action=edit&id=$rule_id");
-		//html_header($display_text);
 
 		if (!sizeof($neighbor_objects)) {
 			print "<tr colspan='6'><td>" . __('There are no Objects that match this rule.') . "</td></tr>\n";
@@ -1186,12 +1171,6 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	else {
 		return($json);
 	}
-	
-	// return(array('nodes' => $projected, 'edges' => $edges));
-	// header('Content-Type: application/json');
-	// print "Moo: $json2";
-	// print "Proj: $json4";
-	// print $json;
 }
 
 // Update the plugin_neighbor_edge table
@@ -1410,10 +1389,9 @@ function get_distance($a,$b) {
         list($lat1,$lon1) = explode(",",$a);
         list($lat2,$lon2) = explode(",",$b);
 
-        $p = pi() / 180;    			//  PI / 180
+        $p = pi() / 180;
         $calc = 0.5 - cos(($lat2 - $lat1) * $p)/2 + cos($lat1 * $p) * cos($lat2 * $p) * (1 - cos(($lon2 - $lon1) * $p))/2;
-        $distance = sprintf("%.2d",(12742 * asin(sqrt($calc)) * 1000));                                                                       # 2 * R; R = 6371 km
-		//error_log("get_distance() : Getting distance from $a ($lat1,$lon1) -> $b ($lat2,$lon2) = $distance");
+        $distance = sprintf("%.2d",(12742 * asin(sqrt($calc)) * 1000));
         return($distance);
 }
 
@@ -1449,7 +1427,6 @@ function dedup_by_hash($neighbor_objects) {
 	$dedup = array();
 	$neighbor_objects = is_array($neighbor_objects) ? $neighbor_objects : array();
 	
-	// error_log("Objects is:".sizeof($neighbor_objects)." records.");
 	foreach ($neighbor_objects as $rec) {
 		$neighbor_hash = isset($rec['neighbor_hash']) ? $rec['neighbor_hash'] : "";
 		$neighbor_type = isset($rec['type']) ? $rec['type'] : "";
@@ -1458,18 +1435,11 @@ function dedup_by_hash($neighbor_objects) {
 		$seen[$neighbor_hash]=1;
 		$dedup[] = $rec;
 	}
-	// error_log("Dedup is now:".sizeof($dedup)." records.");
 	return($dedup);
 }
 
 function neighbor_build_data_query_sql($rule,$host_filter,$edge_filter) {
 	cacti_log(__FUNCTION__ . ' called: ' . serialize($rule), false, 'NEIGHBOR TRACE', POLLER_VERBOSITY_HIGH);
-
-	/*
-	$field_names = get_field_names($rule['snmp_query_id']);
-	$sql_query = 'SELECT h.description AS automation_host, host_id, h.disabled, h.status, snmp_query_id, snmp_index ';
-	$i = 0;
-	*/
 	
 	$sql_query = 'SELECT h.description AS automation_host, h.disabled, h.status ';
 	$neighbor_options = isset($rule['neighbor_options']) ? explode(",", $rule['neighbor_options']) : array();
@@ -1512,8 +1482,6 @@ function neighbor_build_data_query_sql($rule,$host_filter,$edge_filter) {
 	if ($sql_where2 !== '') {
 		$sql_where_combined[] = "($sql_where2)";
 	}
-	
-	//if ($host_filter) { array_push($sql_where_combined,"(h.description like '%$host_filter%')");}
 
 	$table_join_list = implode(" ",$table_join);
 	$query_where = sizeof($sql_where_combined) ? "WHERE ".implode(" AND ",$sql_where_combined) : "";
