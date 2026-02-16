@@ -87,15 +87,16 @@ $_SESSION['sess_nav_level_cache'] = '';
  * @return void Outputs HTML and JavaScript includes
  */
 function display_neighbors() {
-	// Validate neighbor_type against whitelist
+	/* ================= input validation ================= */
 	$neighbor_type = 'xdp';
 	if (isset_request_var('neighbor_type')) {
-		$type = get_request_var('neighbor_type');
+		$type = get_filter_request_var('neighbor_type', FILTER_CALLBACK, array('options' => 'sanitize_search_string'));
 		$allowed_types = array('xdp', 'ipv4', 'ifalias');
 		if (in_array($type, $allowed_types, true)) {
 			$neighbor_type = $type;
 		}
 	}
+	/* ==================================================== */
 	
 	print "<div id='neighbor_toolbar'></div>\n";
 	print "<div id='xdp_neighbors_holder'></div>\n";
