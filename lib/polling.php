@@ -215,3 +215,289 @@ function neighbor_snmp_walk_and_flatten($host, $walkOids) {
 	return $results;
 }
 
+/**
+ * Constants for IP neighbor discovery
+ */
+define('NEIGHBOR_LOOPBACK_MASK', '255.255.255.255');
+define('NEIGHBOR_DEFAULT_DEADTIMER', 60);
+define('NEIGHBOR_DEFAULT_SUBNET_CORRELATION', 30);
+
+/**
+ * Discovers CDP neighbors for a given host
+ * 
+ * Performs SNMP walk of Cisco Discovery Protocol MIB to identify directly
+ * connected network devices and their interface relationships.
+ *
+ * @param array $host Host array from database with SNMP credentials
+ * @return int Number of neighbors discovered and stored
+ */
+function discoverCdpNeighbors($host)
+{
+	debug("Processing CDP Neighbors: " . $host['description']);
+	$oidTable = get_neighbor_oid_table();
+	$cdpTable = neighbor_snmp_walk_and_flatten($host, $oidTable['cdpMibWalk']);
+	$neighCount = 0;
+
+	$cdpParsed = array();
+	foreach ($cdpTable as $oid => $val) { 
+
+		if 	(preg_match('/'.$oidTable['cdpCacheDeviceId'].'\.(\d+\.\d+)/',$oid,$matches)) {
+				$index = isset($matches[1]) ? $matches[1] : '';
+				$cdpParsed[$index]['device'] = $val;
+		}	
+		elseif (preg_match('/'.$oidTable['cdpCacheDevicePort'].'\.(\d+\.\d+)/',$oid,$matches)) {
+                                $index = isset($matches[1]) ? $matches[1] : '';
+                                $cdpParsed[$index]['interface'] = $val;
+                }
+		elseif (preg_match('/'.$oidTable['cdpCacheVersion'].'\.(\d+\.\d+)/',$oid,$matches)) {
+                                $index = isset($matches[1]) ? $matches[1] : '';
+                                $cdpParsed[$index]['version'] = $val;
+                }
+		elseif (preg_match('/'.$oidTable['cdpCachePlatform'].'\.(\d+\.\d+)/',$oid,$matches)) {
+                                $index = isset($matches[1]) ? $matches[1] : '';
+                                $cdpParsed[$index]['platform'] = $val;
+                }
+		elseif (preg_match('/'.$oidTable['cdpCacheDuplex'].'\.(\d+\.\d+)/',$oid,$matches)) {
+                                $index = isset($matches[1]) ? $matches[1] : '';
+				if ($val == 1) {
+					$duplex = 'unknown';
+				} elseif ($val == 2) {
+					$duplex = 'half';
+				} else {
+					$duplex = 'full';
+				}
+                                $cdpParsed[$index]['duplex'] = $duplex;
+                }
+		elseif (preg_match('/'.$oidTable['cdpCacheUptime'].'\.(\d+\.\d+)/',$oid,$matches)) {
+                                $index = isset($matches[1]) ? $matches[1] : '';
+				$uptime = is_numeric($val) ? intval($val/1000) : 0;
+                                $cdpParsed[$index]['uptime'] = $uptime;
+                }
+	}
+
+
+	foreach ($cdpParsed as $index => $record) { 
+
+		// Create a unique hash of the neighbor based on the record
+		list($snmpId,$idx) = explode(".",$index);
+		$myHostId = $host['id'];
+		$myIntRecord = findCactiInterface($host['id'],'',$snmpId);
+		if (!$myIntRecord) { debug("Error: Couldn't own find Cacti interface record for host=$myHostId, snmp_index=$snmpId"); continue; } 
+		
+		$myIp			= isset($host['hostname']) 			? $host['hostname']		: "";
+		$myHostname		= isset($host['description']) 		? $host['description']		: "";
+		$myIntName 		= isset($myIntRecord['ifDescr']) 	? $myIntRecord['ifDescr'] 	: "";
+		$myIntAlias 	= isset($myIntRecord['ifAlias']) 	? $myIntRecord['ifAlias'] 	: "";
+		$myIntSpeed 	= isset($myIntRecord['ifHighSpeed']) 	? $myIntRecord['ifHighSpeed'] 	: inferIntSpeed($myIntName);
+		$myIntStatus 	= isset($myIntRecord['ifOperStatus']) 	? $myIntRecord['ifOperStatus'] 	: "";
+		$myIntIp 		= isset($myIntRecord['ifIP']) 		? $myIntRecord['ifIP'] 		: "";
+		$myIntHwAddr 	= isset($myIntRecord['ifHwAddr']) 	? $myIntRecord['ifHwAddr'] 	: "";
+
+		$neighHostname 	= preg_replace('/\..+/','',$record['device']);				// This is a nasty way of stripping a domain
+		$neighPlatform 	= $record['platform'];
+		$neighSoftware 	= $record['version'];
+		$neighDuplex 	= $record['duplex'];
+		$neighUptime 	= $record['uptime'];
+		$neighInterface 	= $record['interface'];
+		$neighRecord = findCactiHost($neighHostname);
+		$neighHostId = isset($neighRecord[$neighHostname]['id']) ? $neighRecord[$neighHostname]['id'] : "";
+		$neighIntRecord = findCactiInterface($neighHostId,$neighInterface);
+
+		if ($neighHostId && $neighIntRecord) {
+			$neighSnmpId	      = isset($neighIntRecord['snmp_index'])     ? $neighIntRecord['snmp_index']    : "";
+			$neighIntName      = isset($neighIntRecord['ifDescr'])        ? $neighIntRecord['ifDescr']       : "";
+			$neighIntAlias     = isset($neighIntRecord['ifAlias'])        ? $neighIntRecord['ifAlias']       : "";
+			$neighIntSpeed     = isset($neighIntRecord['ifHighSpeed'])    ? $neighIntRecord['ifHighSpeed']   : inferIntSpeed($neighIntName);
+			$neighIntStatus    = isset($neighIntRecord['ifOperStatus'])   ? $neighIntRecord['ifOperStatus']  : "";
+			$neighIntIp        = isset($neighIntRecord['ifIP'])           ? $neighIntRecord['ifIP']          : "";
+			$neighIntHwAddr    = isset($neighIntRecord['ifHwAddr'])       ? $neighIntRecord['ifHwAddr']      : "";
+		} else {
+			$neighSnmpId       = 0;
+			$neighIntName      = $neighInterface;
+			$neighIntAlias     = "";
+			$neighIntSpeed     = inferIntSpeed($neighInterface);
+			$neighIntStatus    = "";
+			$neighIntIp        = "";
+			$neighIntHwAddr    = "";
+		}
+
+		$hashArray = array(	$host['id'], 'cdp', $myIp, $myHostname,$snmpId,
+					$myIntName, $myIntAlias,$myIntSpeed,$myIntStatus,$myIntIp,$myIntHwAddr,
+					$neighHostId, $neighHostname, $neighSnmpId,
+					$neighIntName, $neighIntAlias,$neighIntSpeed,$neighIntStatus,$neighIntIp,$neighIntHwAddr,
+					$neighPlatform, $neighSoftware,$neighDuplex);
+
+		$hostArray = array($myHostname,$neighHostname);
+		sort($hostArray);
+		$intArray = array($myIntName,$neighIntName);
+		sort($intArray);
+		$neighArray = array_merge($hostArray,$intArray);		// Sort the values to  make them even for each neighbor pair
+		
+		$recordHash = md5(serialize($hashArray));												// This should be unique to each CDP entry
+		$neighHash = md5(serialize($neighArray));												// This should allow us to pair neighbors together
+		
+		if (db_execute_prepared("REPLACE  INTO `plugin_neighbor_xdp` 
+				       (`host_id`, `type`,`host_ip`, `hostname`, `snmp_id`, 
+					`interface_name`, `interface_alias`, `interface_speed`, `interface_status`, `interface_ip`, `interface_hwaddr`, 
+					`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`, 
+					`neighbor_interface_name`, `neighbor_interface_alias`, `neighbor_interface_speed`, 
+					`neighbor_interface_status`, `neighbor_interface_ip`, `neighbor_interface_hwaddr`, 
+					`neighbor_platform`, `neighbor_software`, `neighbor_duplex`, 
+					`neighbor_last_changed`, `last_seen`,`neighbor_hash`, `record_hash`)
+				    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,DATE_SUB(NOW(),INTERVAL ? SECOND),NOW(),?,?)",
+				    array_merge($hashArray,array($neighUptime,$neighHash,$recordHash))
+		)) { $neighCount++;}
+	}
+	return($neighCount);
+}
+
+/**
+ * Discovers LLDP neighbors for a given host
+ * 
+ * Performs SNMP walk of Link Layer Discovery Protocol MIB to identify
+ * vendor-neutral neighbor relationships.
+ *
+ * @param array $host Host array from database with SNMP credentials
+ * @return int Number of neighbors discovered and stored
+ */
+function discoverLldpNeighbors($host)
+{
+	$oidTable = get_neighbor_oid_table();
+	debug("Processing LLDP Neighbors: " . $host['description']);
+	$neighCount = 0;
+	$hostId=$host['id'];
+	$lldpTable = neighbor_snmp_walk_and_flatten($host, $oidTable['lldpMibWalk']);
+
+
+	$lldpParsed = array();
+	$lldpToSnmp = array();
+	foreach ($lldpTable as $oid => $val) { 
+
+		if 	(preg_match('/'.$oidTable['lldpLocPortDesc'].'\.(\d+)/',$oid,$matches)) {
+				$index = isset($matches[1]) ? $matches[1] : '';
+				$intRec = findCactiInterface($hostId,$val);
+				$snmpIndex = isset($intRec['snmp_index']) ? $intRec['snmp_index'] : $index;
+				$lldpToSnmp[$index] = $snmpIndex;
+		}	
+		elseif (preg_match('/'.$oidTable['lldpRemPortDesc'].'\.\d+\.(\d+\.\d+)/',$oid,$matches)) {
+                                list($portIndex,$lldpIndex) = isset($matches[1]) ? explode(".",$matches[1]) : array("","");
+				$snmpIndex = isset($lldpToSnmp[$portIndex]) ? $lldpToSnmp[$portIndex] : "";
+				//debug("lldpRemPort: portIndex: $portIndex, lldpIndex: $lldpIndex, snmpIndex: $snmpIndex\n");
+                                $lldpParsed["$snmpIndex.$lldpIndex"]['interface'] = $val;
+				$lldpParsed["$snmpIndex.$lldpIndex"]['duplex'] = 'unknown';				// No duplex in the MIB
+				$lldpParsed["$snmpIndex.$lldpIndex"]['uptime'] = 0;					// No timeticks in the MIB
+                }
+		elseif (preg_match('/'.$oidTable['lldpRemSysName'].'\.\d+\.(\d+\.\d+)/',$oid,$matches)) {
+                                list($portIndex,$lldpIndex) = isset($matches[1]) ? explode(".",$matches[1]) : array("","");
+				$snmpIndex = isset($lldpToSnmp[$portIndex]) ? $lldpToSnmp[$portIndex] : "";
+                                $lldpParsed["$snmpIndex.$lldpIndex"]['device'] = $val;
+                }
+		elseif (preg_match('/'.$oidTable['lldpRemSysDesc'].'\.\d+\.(\d+\.\d+)/',$oid,$matches)) {
+                                list($portIndex,$lldpIndex) = isset($matches[1]) ? explode(".",$matches[1]) : array("","");
+				$snmpIndex = isset($lldpToSnmp[$portIndex]) ? $lldpToSnmp[$portIndex] : "";
+                                $lldpParsed["$snmpIndex.$lldpIndex"]['version'] = $val;
+                                $lldpParsed["$snmpIndex.$lldpIndex"]['platform'] = (is_string($val) ? strtok($val, "\n") : '');			// The first line of lldpRemSysDesc is closest to platform inc CDP
+                }
+	}
+
+	// Update the Database
+
+	foreach ($lldpParsed as $index => $record) { 
+
+		// Create a unique hash of the neighbor based on the record
+		list($snmpId,$idx) = explode(".",$index);
+		$myHostId = $host['id'];
+		$myIntRecord = findCactiInterface($host['id'],'',$snmpId);
+		if (!$myIntRecord) { debug("Error: Couldn't own find Cacti interface record for host=$myHostId, snmp_index=$snmpId"); continue; } 
+		
+		$myIp		= isset($host['hostname']) 		? $host['hostname']		: "";
+		$myHostname	= isset($host['description']) 		? $host['description']		: "";
+		$myIntName 	= isset($myIntRecord['ifDescr']) 	? $myIntRecord['ifDescr'] 	: "";
+		$myIntAlias 	= isset($myIntRecord['ifAlias']) 	? $myIntRecord['ifAlias'] 	: "";
+		$myIntSpeed 	= isset($myIntRecord['ifHighSpeed']) 	? $myIntRecord['ifHighSpeed'] 	: inferIntSpeed($myIntName);
+		$myIntStatus 	= isset($myIntRecord['ifOperStatus']) 	? $myIntRecord['ifOperStatus'] 	: "";
+		$myIntIp 	= isset($myIntRecord['ifIP']) 		? $myIntRecord['ifIP'] 		: "";
+		$myIntHwAddr 	= isset($myIntRecord['ifHwAddr']) 	? $myIntRecord['ifHwAddr'] 	: "";
+
+	
+		$neighHostname 	= preg_replace('/\..+/','',$record['device']);
+		$neighPlatform 	= $record['platform'];
+		$neighSoftware 	= $record['version'];
+		$neighDuplex 	= $record['duplex'];
+		$neighUptime 	= $record['uptime'];
+		$neighInterface 	= $record['interface'];
+		$neighRecord = findCactiHost($neighHostname);
+		$neighHostId = isset($neighRecord[$neighHostname]['id']) ? $neighRecord[$neighHostname]['id'] : "";
+		$neighIntRecord = findCactiInterface($neighHostId,$neighInterface);
+
+		// If neighbor is in Cacti, use cached interface details; otherwise use LLDP-reported values
+		if ($neighHostId && $neighIntRecord) {
+			$neighSnmpId	      = isset($neighIntRecord['snmp_index'])     ? $neighIntRecord['snmp_index']    : "";
+			$neighIntName      = isset($neighIntRecord['ifDescr'])        ? $neighIntRecord['ifDescr']       : "";
+			$neighIntAlias     = isset($neighIntRecord['ifAlias'])        ? $neighIntRecord['ifAlias']       : "";
+			$neighIntSpeed     = isset($neighIntRecord['ifHighSpeed'])    ? $neighIntRecord['ifHighSpeed']   : inferIntSpeed($neighIntName);
+			$neighIntStatus    = isset($neighIntRecord['ifOperStatus'])   ? $neighIntRecord['ifOperStatus']  : "";
+			$neighIntIp        = isset($neighIntRecord['ifIP'])           ? $neighIntRecord['ifIP']          : "";
+			$neighIntHwAddr    = isset($neighIntRecord['ifHwAddr'])       ? $neighIntRecord['ifHwAddr']      : "";
+		} else {
+			// Neighbor not in Cacti - use LLDP-reported interface name directly
+			$neighSnmpId       = 0;
+			$neighIntName      = $neighInterface;  // Use the LLDP-reported remote port
+			$neighIntAlias     = "";
+			$neighIntSpeed     = inferIntSpeed($neighInterface);
+			$neighIntStatus    = "";
+			$neighIntIp        = "";
+			$neighIntHwAddr    = "";
+		}
+
+		$hashArray = array(	$host['id'], 'lldp',$myIp, $myHostname,$snmpId,
+					$myIntName, $myIntAlias,$myIntSpeed,$myIntStatus,$myIntIp,$myIntHwAddr,
+					$neighHostId, $neighSnmpId,
+					$neighIntName, $neighIntAlias,$neighIntSpeed,$neighIntStatus,$neighIntIp,$neighIntHwAddr,
+					$neighHostname, $neighPlatform, $neighSoftware,$neighDuplex);
+
+		$hostArray = array($myHostname,$neighHostname);
+		sort($hostArray);
+		$intArray = array($myIntName,$neighIntName);
+		sort($intArray);
+		$neighArray = array_merge($hostArray,$intArray);		// Sort the values to  make them even for each neighbor pair
+		
+		$recordHash = md5(serialize($hashArray));												// This should be unique to each CDP entry
+		$neighHash = md5(serialize($neighArray));												// This should allow us to pair neighbors together
+		if (db_execute_prepared("REPLACE  INTO `plugin_neighbor_xdp` 
+				       (`host_id`, `type`,`host_ip`, `hostname`, `snmp_id`, 
+					`interface_name`, `interface_alias`, `interface_speed`, `interface_status`, `interface_ip`, `interface_hwaddr`, 
+					`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`, 
+					`neighbor_interface_name`, `neighbor_interface_alias`, `neighbor_interface_speed`, 
+					`neighbor_interface_status`, `neighbor_interface_ip`, `neighbor_interface_hwaddr`, 
+					`neighbor_platform`, `neighbor_software`, `neighbor_duplex`, 
+					`neighbor_last_changed`, `neighbor_hash`, `record_hash`)
+				    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,DATE_SUB(NOW(),INTERVAL ? SECOND),?,?)",
+				    array_merge($hashArray,array($neighUptime,$neighHash,$recordHash))
+		)) { $neighCount++;}
+	}
+	return($neighCount);
+}
+
+/**
+ * Fetch IPv4 cache entries for neighbor correlation
+ * 
+ * Retrieves IP address and subnet information that was collected via SNMP
+ * for use in finding IP-based neighbor relationships.
+ * 
+ * @param int|null $hostId Optional host ID to filter results
+ * @return array Nested array indexed by [vrf][ip_address]
+ */
+function getIpv4Cache($hostId = null) {
+	
+	if ($hostId) {
+		$query = db_fetch_assoc_prepared("SELECT * from plugin_neighbor_ipv4_cache where host_id=?",array($hostId));
+		$result = db_fetch_hash($query,array('vrf','ip_address'));
+		return ($result);
+	}
+	else { 
+		$query = db_fetch_assoc("SELECT * from plugin_neighbor_ipv4_cache");
+		$result = db_fetch_hash($query,array('vrf','ip_address'));
+		return ($result);
+	}
+}

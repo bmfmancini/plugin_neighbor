@@ -1253,6 +1253,190 @@ if(!function_exists("array_replace")){
 	 }
 }
 
+/**
+ * Find Cacti host record by hostname or host ID
+ * 
+ * Searches for a host in the Cacti database by description (hostname).
+ * Performs case-insensitive matching with optional domain stripping.
+ * 
+ * @param string|null $hostName Hostname to search for
+ * @param int|null $hostId Host ID to search for
+ * @return array Hash of host records indexed by description
+ */
+function findCactiHost($hostName = null, $hostId = null)
+{
+	$strippedHost = preg_replace('/\..+/','',$hostName);
+	$sorted = array();
+	$hostRecords = "";
+    if ($hostId && $hostRecords = db_fetch_assoc_prepared("SELECT * from host where id = ?",array($hostId)) ) {
+		$sorted = db_fetch_hash($hostRecords,array('description'));
+	}
+	elseif ($hostRecords = db_fetch_assoc_prepared("SELECT * from host where LOWER(description) LIKE LOWER(?)",array($hostName))) { 
+       	$sorted = db_fetch_hash($hostRecords,array('description'));
+	}
+	elseif ($hostRecords = db_fetch_assoc_prepared("SELECT * from host where LOWER(description) LIKE LOWER(?)",array($strippedHost))) {
+        $sorted = db_fetch_hash($hostRecords,array('description'));
+    }
+    return($sorted);
+
+}
+
+/**
+ * Get Cacti host record by host ID
+ * 
+ * Retrieves a single host record from the Cacti database.
+ * 
+ * @param int $hostId Host ID to look up
+ * @return array|null Host record array or null if not found
+ */
+function getCactiHostById($hostId)
+{
+	if ($hostRecords = db_fetch_assoc_prepared("SELECT * from host where id = ?",array($hostId))) {
+		if (isset($hostRecords[0])) {
+			return($hostRecords[0]);
+		}
+	}
+	else {
+		debug("Error: Couldn't locate host record for host_id = $hostId");
+		return(null);
+	}
+}
+
+/**
+ * Find Cacti interface in host_snmp_cache
+ * 
+ * Looks up interface details from the SNMP cache for a given host and interface.
+ * Can search by interface name or SNMP index.
+ * 
+ * @param int $hostId Host ID to search
+ * @param string $interface Interface name (e.g., GigabitEthernet0/1)
+ * @param int|null $snmpIndex SNMP interface index
+ * @return array|false Array of interface details or false if not found
+ */
+function findCactiInterface($hostId,$interface, $snmpIndex = null)
+{
+	if (!$snmpIndex) { 
+		$snmpIndex = db_fetch_cell_prepared("SELECT snmp_index from host_snmp_cache where host_id = ? AND field_name = 'ifDescr' and field_value = ?",array($hostId,$interface));
+	}
+
+	$cacheRecords = db_fetch_assoc_prepared("SELECT * from host_snmp_cache where host_id = ? AND snmp_index=?",array($hostId,$snmpIndex));
+	if ($cacheRecords) { 
+	        $sorted = db_fetch_hash($cacheRecords,array('snmp_index','field_name'));
+		return(array(
+        		'snmp_index'	=> $snmpIndex,
+        		'ifDescr'	=> isset($sorted[$snmpIndex]['ifDescr']['field_value']) 	? $sorted[$snmpIndex]['ifDescr']['field_value'] : "",
+        		'ifAlias'	=> isset($sorted[$snmpIndex]['ifAlias']['field_value']) 	? $sorted[$snmpIndex]['ifAlias']['field_value'] : "",
+        		'ifHighSpeed'	=> isset($sorted[$snmpIndex]['ifHighSpeed']['field_value']) 	? $sorted[$snmpIndex]['ifHighSpeed']['field_value'] : "",
+        		'ifSpeed'	=> isset($sorted[$snmpIndex]['ifSpeed']['field_value']) 	? $sorted[$snmpIndex]['ifSpeed']['field_value'] : "",
+        		'ifIP'		=> isset($sorted[$snmpIndex]['ifIP']['field_value']) 		? $sorted[$snmpIndex]['ifIP']['field_value'] : "",
+        		'ifHwAddr' 	=> isset($sorted[$snmpIndex]['ifHwAddr']['field_value']) 	? $sorted[$snmpIndex]['ifHwAddr']['field_value'] : "",
+        		'ifOperStatus'  => isset($sorted[$snmpIndex]['ifOperStatus']['field_value']) 	? $sorted[$snmpIndex]['ifOperStatus']['field_value'] : "",
+
+		));
+	}
+	else {
+		return(false);
+	}
+
+}
+
+/**
+ * Auto-discover all eligible hosts for neighbor discovery
+ * 
+ * Scans the Cacti host table for SNMP-enabled, active hosts and adds them
+ * to the neighbor discovery system with default settings enabled.
+ * 
+ * @return bool True on success
+ */
+function autoDiscoverHosts()
+{
+	global $debug;
+
+	$hosts = db_fetch_assoc("SELECT *
+		FROM host
+		WHERE snmp_version > 0
+		AND disabled != 'on'
+		AND status != 1");
+
+	cacti_log("NEIGHBOR: INFO: Starting Auto-Discovery for '" . sizeof($hosts) . "' Hosts", true, "NEIGHBOR");
+	debug("Starting AutoDiscovery for '" . sizeof($hosts) . "' Hosts");
+
+	$hostsAdded = 0;
+	$hostsUpdated = 0;
+
+	if (sizeof($hosts)) {
+		foreach($hosts as $host) {
+			debug("AutoDiscovery Check for Host '" . $host['description'] . "['" . $host['hostname'] . "']" );
+			
+			// Check if host already exists in plugin_neighbor_host
+			$existing = db_fetch_cell_prepared("SELECT host_id FROM plugin_neighbor_host WHERE host_id = ?", array($host['id']));
+			
+			if ($existing) {
+				debug("Host '" . $host['description'] . "' already in neighbor discovery table");
+				// Update existing entry to ensure it's enabled
+				db_execute_prepared("UPDATE plugin_neighbor_host 
+					SET enabled = 1 
+					WHERE host_id = ?", 
+					array($host['id']));
+				$hostsUpdated++;
+			} else {
+				// Add new host with default settings
+				db_execute_prepared("INSERT INTO plugin_neighbor_host 
+					(host_id, enabled, discover_cdp, discover_lldp, discover_ip) 
+					VALUES (?, 1, 1, 1, 1)",
+					array($host['id']));
+				debug("Host '" . $host['description'] . "' added to neighbor discovery table");
+				$hostsAdded++;
+			}
+		}
+	}
+
+	cacti_log("NEIGHBOR: INFO: Auto-Discovery Complete - Added: $hostsAdded, Updated: $hostsUpdated", true, "NEIGHBOR");
+	debug("AutoDiscovery Complete - Added: $hostsAdded, Updated: $hostsUpdated");
+	db_execute_prepared("REPLACE INTO settings (name,value) VALUES ('plugin_neighbor_autodiscovery_lastrun', ?)", array(time()));
+
+	return true;
+}
+
+/**
+ * Check if two IP/Netmask combinations are in the same subnet
+ * 
+ * @param string $ip1 First IP address
+ * @param string $net1 First netmask 
+ * @param string $ip2 Second IP address
+ * @param string $net2 Second netmask
+ * @return bool True if IPs are in same subnet, false otherwise
+ */
+function ipSubnetCheck($ip1, $net1, $ip2, $net2)
+{
+	$ip_ip1 = ip2long($ip1);
+	$ip_ip2 = ip2long($ip2);
+	$ip_net1 = ip2long($net1);
+	$ip_net2 = ip2long($net2);
+
+	$ip_ip1_net = $ip_ip1 & $ip_net1;
+	$ip_ip2_net = $ip_ip2 & $ip_net2;
+
+	return ($ip_ip1_net == $ip_ip2_net);
+}
+
+/**
+ * Infer interface speed from interface name pattern
+ * 
+ * Uses common Cisco interface naming conventions to estimate bandwidth.
+ * 
+ * @param string $interface Interface name (e.g., GigabitEthernet0/1)
+ * @return int|null Interface speed in Mbps, or null if pattern not recognized
+ */
+function inferIntSpeed($interface)
+{
+	if (preg_match('/^Fa/',$interface)) 	{ return(100); }
+	if (preg_match('/^Gi/',$interface)) 	{ return(1000); }
+	if (preg_match('/^Te/',$interface)) 	{ return(10000); }
+	if (preg_match('/^Fo/',$interface)) 	{ return(40000); }
+	if (preg_match('/^One/',$interface)) 	{ return(100000); }
+}
+
 function snipToDots($str,$len) {
     
 	if(strlen($str)<=$len) { return "<span>" . htmlspecialchars($str, ENT_QUOTES, 'UTF-8') . "</span>";}
