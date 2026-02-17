@@ -30,10 +30,6 @@ if (!isset($_SERVER['argv'][0]) || isset($_SERVER['REQUEST_METHOD'])  || isset($
         die('<br><strong>This script is only meant to run at the command line.</strong>');
 }
 
-// Constants
-define('NEIGHBOR_PROCESS_TIMEOUT', 600);    // 10 minutes - Purge stale process locks
-define('NEIGHBOR_DATA_RETENTION', 900);     // 15 minutes - Data retention for poller output/deltas
-
 declare(ticks = 1);
 ini_set('max_execution_time', '0');
 include(dirname(__FILE__) . '/../../include/cli_check.php');
@@ -455,8 +451,9 @@ function processHosts()
 	debug('NEIGHBOR POLLER - Processing Hosts');
 	debug(str_repeat('-', 85));
 	
-	/* Purge collectors that run longer than 10 minutes */
-	db_execute('DELETE FROM plugin_neighbor_processes WHERE (UNIX_TIMESTAMP() - UNIX_TIMESTAMP(started)) > ' . NEIGHBOR_PROCESS_TIMEOUT);
+	/* Purge collectors that run longer than configured timeout */
+	$processTimeout = read_config_option('neighbor_poller_process_timeout') ? (int) read_config_option('neighbor_poller_process_timeout') : 600;
+	db_execute('DELETE FROM plugin_neighbor_processes WHERE (UNIX_TIMESTAMP() - UNIX_TIMESTAMP(started)) > ' . $processTimeout);
 	/* Do not process collectors are still running */
 	$processes = db_fetch_cell('SELECT count(*) as num_proc FROM plugin_neighbor_processes');
 	if ($processes) {

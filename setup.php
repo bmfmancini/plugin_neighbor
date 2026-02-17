@@ -364,8 +364,39 @@ function neighbor_config_settings () {
 			'method' => 'drop_array',
 			'default' => '300',
 			'array' => $neighbor_frequencies
-			)
-		);
+			),
+		
+		'neighbor_poller_process_timeout' => array(
+			'friendly_name' => __('Poller Process Timeout'),
+			'description' => __('How long should we allow a poller process to run before we consider it timed out and kill it?'),
+			'method' => 'drop_array',
+			'default' => '600',
+			'array' =>  array(
+				60    => __('%d Minute', 5),
+				300   => __('%d Minutes', 10),
+				600   => __('%d Minutes', 15),
+				1200  => __('%d Minutes', 20),
+			),
+		),
+
+		'neighbor_data_retention' => array(
+			'friendly_name' => __('Dead Neighbor Data Retention'),
+			'description' => __('How long should we keep neighbor discovery data (including deltas) before we automatically delete it?'),
+			'method' => 'drop_array',
+			'default' => '900',
+			'array' => array(
+				3600  => __('%d Hour', 1),
+				7200  => __('%d Hours', 2),
+				14400 => __('%d Hours', 4),
+				43200 => __('%d Hours', 12),
+				86400 => __('%d Day', 1),
+				604800 => __('%d Week', 1),
+				2592000 => __('%d Month', 1),
+				-1 => __('Keep Forever'),
+
+			),
+		),
+	);
 }
 
 /**
