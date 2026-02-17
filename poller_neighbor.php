@@ -36,22 +36,16 @@ define('NEIGHBOR_DATA_RETENTION', 900);     // 15 minutes - Data retention for p
 
 declare(ticks = 1);
 ini_set('max_execution_time', '0');
-$dir = dirname(__FILE__);
-chdir($dir);
-include_once (dirname(__FILE__) . '/../../include/global.php');
+include(dirname(__FILE__) . '/../../include/cli_check.php');
 
-// For some reason, including global breaks if you've changed directory first. No idea.
 
-$dir = dirname(__FILE__);
-chdir($dir);
-if (strpos($dir, 'plugins') !== false) { chdir('../../'); }
-include_once('lib/snmp.php');
-include_once('lib/ping.php');
-include_once('lib/poller.php');
-include_once('lib/data_query.php');
-include_once('plugins/neighbor/lib/neighbor_functions.php');
-include_once('plugins/neighbor/lib/neighbor_sql_tables.php');
-include_once('plugins/neighbor/lib/polling.php');
+require_once($config['base_path'] . '/lib/snmp.php');
+require_once($config['base_path'] . '/lib/ping.php');
+require_once($config['base_path'] . '/lib/poller.php');
+require_once($config['base_path'] . '/lib/data_query.php');
+include_once('lib/neighbor_functions.php');
+include_once('lib/neighbor_sql_tables.php');
+include_once('lib/polling.php');
 
 if (function_exists('pcntl_signal')) {
 	pcntl_signal(SIGINT, "sigHandler");
@@ -470,11 +464,6 @@ function processHosts()
 		exit(0);
 	}
 	
-	/* The hosts to scan will
-	 *  1) Be configured in plugin_neighbor_host table
-	 *  2) Not be disabled in host table
-	 *  3) Be up and operational
-	 */
 	$hosts = db_fetch_assoc("SELECT pnh.host_id, h.description, h.hostname 
 				FROM plugin_neighbor_host AS pnh
 				INNER JOIN host AS h ON pnh.host_id = h.id
