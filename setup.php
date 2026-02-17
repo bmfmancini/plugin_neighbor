@@ -408,8 +408,10 @@ function neighbor_config_arrays() {
 		}
 	}
 	$menu = $menu2;
-	$menu_glyphs[__('Neighbors', 'neighbor')] = 'fa fa-group';
+	$menu_glyphs[__('Neighbors', 'neighbor')] = 'fas fa-sitemap';
 	
+
+
 	neighbor_check_upgrade();
 }
 
