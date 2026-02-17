@@ -327,14 +327,24 @@ function discoverCdpNeighbors($host)
 		$neighRecord = findCactiHost($neighHostname);
 		$neighHostId = isset($neighRecord[$neighHostname]['id']) ? $neighRecord[$neighHostname]['id'] : "";
 		$neighIntRecord = findCactiInterface($neighHostId,$neighInterface);
-		
-		$neighSnmpId	      = isset($neighIntRecord['snmp_index'])     ? $neighIntRecord['snmp_index']    : "";
-		$neighIntName      = isset($neighIntRecord['ifDescr'])        ? $neighIntRecord['ifDescr']       : "";
-		$neighIntAlias     = isset($neighIntRecord['ifAlias'])        ? $neighIntRecord['ifAlias']       : "";
-		$neighIntSpeed     = isset($neighIntRecord['ifHighSpeed'])    ? $neighIntRecord['ifHighSpeed']   : inferIntSpeed($neighIntName);
-		$neighIntStatus    = isset($neighIntRecord['ifOperStatus'])   ? $neighIntRecord['ifOperStatus']  : "";
-		$neighIntIp        = isset($neighIntRecord['ifIP'])           ? $neighIntRecord['ifIP']          : "";
-		$neighIntHwAddr    = isset($neighIntRecord['ifHwAddr'])       ? $neighIntRecord['ifHwAddr']      : ""; 
+
+		if ($neighHostId && $neighIntRecord) {
+			$neighSnmpId	      = isset($neighIntRecord['snmp_index'])     ? $neighIntRecord['snmp_index']    : "";
+			$neighIntName      = isset($neighIntRecord['ifDescr'])        ? $neighIntRecord['ifDescr']       : "";
+			$neighIntAlias     = isset($neighIntRecord['ifAlias'])        ? $neighIntRecord['ifAlias']       : "";
+			$neighIntSpeed     = isset($neighIntRecord['ifHighSpeed'])    ? $neighIntRecord['ifHighSpeed']   : inferIntSpeed($neighIntName);
+			$neighIntStatus    = isset($neighIntRecord['ifOperStatus'])   ? $neighIntRecord['ifOperStatus']  : "";
+			$neighIntIp        = isset($neighIntRecord['ifIP'])           ? $neighIntRecord['ifIP']          : "";
+			$neighIntHwAddr    = isset($neighIntRecord['ifHwAddr'])       ? $neighIntRecord['ifHwAddr']      : "";
+		} else {
+			$neighSnmpId       = 0;
+			$neighIntName      = $neighInterface;
+			$neighIntAlias     = "";
+			$neighIntSpeed     = inferIntSpeed($neighInterface);
+			$neighIntStatus    = "";
+			$neighIntIp        = "";
+			$neighIntHwAddr    = "";
+		}
 
 		$hashArray = array(	$host['id'], 'cdp', $myIp, $myHostname,$snmpId,
 					$myIntName, $myIntAlias,$myIntSpeed,$myIntStatus,$myIntIp,$myIntHwAddr,
@@ -441,14 +451,26 @@ function discoverLldpNeighbors($host)
 		$neighRecord = findCactiHost($neighHostname);
 		$neighHostId = isset($neighRecord[$neighHostname]['id']) ? $neighRecord[$neighHostname]['id'] : "";
 		$neighIntRecord = findCactiInterface($neighHostId,$neighInterface);
-		
-		$neighSnmpId	      = isset($neighIntRecord['snmp_index'])     ? $neighIntRecord['snmp_index']    : "";
-		$neighIntName      = isset($neighIntRecord['ifDescr'])        ? $neighIntRecord['ifDescr']       : "";
-                $neighIntAlias     = isset($neighIntRecord['ifAlias'])        ? $neighIntRecord['ifAlias']       : "";
-                $neighIntSpeed     = isset($neighIntRecord['ifHighSpeed'])    ? $neighIntRecord['ifHighSpeed']   : inferIntSpeed($neighIntName);
-                $neighIntStatus    = isset($neighIntRecord['ifOperStatus'])   ? $neighIntRecord['ifOperStatus']  : "";
-                $neighIntIp        = isset($neighIntRecord['ifIP'])           ? $neighIntRecord['ifIP']          : "";
-                $neighIntHwAddr    = isset($neighIntRecord['ifHwAddr'])       ? $neighIntRecord['ifHwAddr']      : ""; 
+
+		// If neighbor is in Cacti, use cached interface details; otherwise use LLDP-reported values
+		if ($neighHostId && $neighIntRecord) {
+			$neighSnmpId	      = isset($neighIntRecord['snmp_index'])     ? $neighIntRecord['snmp_index']    : "";
+			$neighIntName      = isset($neighIntRecord['ifDescr'])        ? $neighIntRecord['ifDescr']       : "";
+			$neighIntAlias     = isset($neighIntRecord['ifAlias'])        ? $neighIntRecord['ifAlias']       : "";
+			$neighIntSpeed     = isset($neighIntRecord['ifHighSpeed'])    ? $neighIntRecord['ifHighSpeed']   : inferIntSpeed($neighIntName);
+			$neighIntStatus    = isset($neighIntRecord['ifOperStatus'])   ? $neighIntRecord['ifOperStatus']  : "";
+			$neighIntIp        = isset($neighIntRecord['ifIP'])           ? $neighIntRecord['ifIP']          : "";
+			$neighIntHwAddr    = isset($neighIntRecord['ifHwAddr'])       ? $neighIntRecord['ifHwAddr']      : "";
+		} else {
+			// Neighbor not in Cacti - use LLDP-reported interface name directly
+			$neighSnmpId       = 0;
+			$neighIntName      = $neighInterface;  // Use the LLDP-reported remote port
+			$neighIntAlias     = "";
+			$neighIntSpeed     = inferIntSpeed($neighInterface);
+			$neighIntStatus    = "";
+			$neighIntIp        = "";
+			$neighIntHwAddr    = "";
+		}
 
 		$hashArray = array(	$host['id'], 'lldp',$myIp, $myHostname,$snmpId,
 					$myIntName, $myIntAlias,$myIntSpeed,$myIntStatus,$myIntIp,$myIntHwAddr,
