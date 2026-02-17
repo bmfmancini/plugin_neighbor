@@ -1,0 +1,17 @@
+{
+  "name": "plugin-neighbor",
+  "version": "0.1.0",
+  "description": "Neighbor discovery and mapping plugin for Cacti",
+  "private": true,
+  "scripts": {
+    "update-deps": "npm install && npm run copy-deps",
+    "copy-deps": "node copy-dependencies.js"
+  },
+  "dependencies": {
+    "jquery": "^3.7.1",
+    "moment": "^2.30.1",
+    "vis-network": "^9.1.9",
+    "vis-timeline": "^7.7.3"
+  },
+  "devDependencies": {}
+}
