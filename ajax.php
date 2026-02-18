@@ -149,7 +149,7 @@ function ajax_map_save_options($format = 'jsonp',$ajax = true) {
 		$mapOptions = isset_request_var('options') ? get_request_var('options') : [];
 
 		$nodes     = json_decode($mapItems,true);
-		$projected = project_nodes($nodes, $canvas_x,$canvas_y, 0, false, true);		// We need to flip the Y axis around for some reason due to vis.js
+		$projected = project_nodes($nodes, $canvas_x,$canvas_y, 0, false, false);		// Y axis not flipped for d3.js
 
 		error_log('Nodes:' . print_r($nodes,true));
 		error_log('Projected:' . print_r($projected,true));

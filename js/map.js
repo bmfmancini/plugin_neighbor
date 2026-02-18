@@ -1,8 +1,17 @@
 
+// D3.js-based Network Visualization (formerly vis.js)
 var tooltips = [];		// Array to store and destroy tooltips
 var mapOptions = {
 	ajax: true				// Fetch from Ajax by default	
 };	// Array to store the map options
+var nodesData = [];			// Native array for nodes
+var edgesData = [];			// Native array for edges
+var simulation = null;		// D3 force simulation
+var svg = null;				// SVG container
+var container = null;		// DOM container element
+var zoom = null;			// D3 zoom behavior
+var transform = d3.zoomIdentity;  // Current zoom transform
+var network = {};			// Network object for compatibility
 
 // Maintain some backwards compatibility as Object.keys not universally available.
 Object.size = function(obj) {
@@ -12,6 +21,10 @@ var size = 0, key;
 	}
 	return size;
 };
+
+// Add compatibility methods to network object
+network.width = 1280;
+network.height = 1080;
 
 // Color Generation - credits to Euler Junior - https://stackoverflow.com/a/32257791
 
@@ -106,7 +119,7 @@ var rotateMap = function(e) {
 			items[i].x = newPoint.x;
 			items[i].y = newPoint.y;
 	}
-	nodesData = new vis.DataSet(items);
+	nodesData = items;
 	var data = {
 		  nodes: nodesData,
 		  edges: edgesData
@@ -118,17 +131,20 @@ var rotateMap = function(e) {
 
 // Store the coords and options
 var storeCoords = function() {
-		
-	network.storePositions();
-	var positions = network.getPositions();
-	console.log("Positions:",positions);
-	var items = nodesData.get();
-	var seed = network.getSeed();
+	var items = nodesData.map(function(node) {
+		return {
+			id: node.id,
+			label: node.label,
+			x: node.x,
+			y: node.y
+		};
+	});
 	
+	var seed = 0; // D3 doesn't use seed the same way
 	var options = [];
-	console.log("Canvas?",$("div.vis-network > canvas"));
-	var canvas_x = $("div.vis-network > canvas").attr('width');
-	var canvas_y = $("div.vis-network > canvas").attr('height');
+	
+	var canvas_x = container ? container.clientWidth : 1280;
+	var canvas_y = container ? container.clientHeight : 1080;
 	
 	var jsonItems = JSON.stringify(items);
 	var jsonOptions = JSON.stringify(options);
@@ -154,7 +170,7 @@ var storeCoords = function() {
 			drawMap();
 		},
 		error: function(e) {
-			DevExpress.ui.notify("Error resetting map for user:"+user_id,"error",3000);	
+			DevExpress.ui.notify("Error saving map for user:"+user_id,"error",3000);	
 		}
 	});
 }
@@ -349,8 +365,8 @@ var drawMap = function() {
 					}
 					
 					console.log("Nodes:",nodes,"Edges",edges,"Keeping",keeping);
-					nodesData = new vis.DataSet(nodes);
-					edgesData = new vis.DataSet(edges);
+					nodesData = nodes;
+					edgesData = edges;
 					
 					var data = {
 					  nodes: nodesData,
@@ -499,8 +515,8 @@ var drawMap = function() {
 		nodes = reindexObject(nodes);
 		
 		console.log("Nodes:",nodes,"Edges",edges,"Keeping",keeping,"mapOptions:",mapOptions);
-		nodesData = new vis.DataSet(nodes);
-		edgesData = new vis.DataSet(edges);
+		nodesData = nodes;
+		edgesData = edges;
 		
 		var data = {
 		  nodes: nodesData,

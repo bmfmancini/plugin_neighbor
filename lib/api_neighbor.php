@@ -1811,9 +1811,8 @@ function display_interface_map($rule_id = 1) {
 
 	// Toolbar with map options
 	print "<div id='neighbor_map_toolbar'></div>\n";
-	// Load the visjs JS libraries
-	printf("<link href='%s' rel='stylesheet'>",'js/visjs/vis.min.css');
-	printf("<script type='text/javascript' src='%s'></script>",'js/visjs/vis.min.js');
+	// Load the d3.js library
+	printf("<script type='text/javascript' src='%s'></script>",'js/d3.v7.min.js');
 	printf("<script type='text/javascript' src='%s'></script>",'js/moment.min.js');
 	printf("<script type='text/javascript' src='%s'></script>",'js/map.js');
 
