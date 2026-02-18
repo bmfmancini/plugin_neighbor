@@ -148,38 +148,6 @@ $(document).ready(function() {
 					
 				},
 				{
-				location: 'before',
-				locateInMenu: 'auto',
-				//locateInMenu: 'never',
-                template: function() {
-						return $("<div class='toolbar-label' style='padding-left: 10px;'><b>Map Rotation:</b></div>");
-					},
-				},
-				{
-					location: 'before',
-					locateInMenu: 'auto',
-					widget: 'dxSlider',
-					options: {
-						min: -180,
-						max: 180,
-						value: 0,
-						step: 5,
-						keyStep: 5,
-						width: 150,
-						rtlEnabled:true,
-						label: {visible: true },
-						tooltip: {
-							enabled: true,
-							format: function (value) {
-								return value + "°";
-							},
-							position: "bottom"
-						},
-						onValueChanged: function(e) { rotateMap(e);},
-					}
-					
-				},
-				{
 					locateInMenu: 'always',
 					text: 'Save',
 					onClick: function() {
