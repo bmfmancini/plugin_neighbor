@@ -5,7 +5,8 @@
 var tooltips = [];		// Array to store and destroy tooltips
 var mapOptions = {
 	ajax: true,				// Fetch from Ajax by default
-	refreshInterval: 30000	// 30 seconds for live updates
+	refreshInterval: 30000,	// 30 seconds for live updates
+	selectedHosts: []	// Array of selected host IDs for filtered view
 };
 var nodesData = [];			// Native array for nodes
 var edgesData = [];			// Native array for edges
@@ -147,6 +148,20 @@ var filterNodes = function(nodes) {
 // Filter edges by last seen time and node filtering
 var filterEdges = function(nodes, edges) {
 	var filteredNodes = filterNodes(nodes);
+	// If user selected specific hosts, include only those hosts and any nodes directly connected to them
+	if (mapOptions.selectedHosts && mapOptions.selectedHosts.length) {
+		var sel = new Set(mapOptions.selectedHosts.map(String));
+		// collect node ids that should be visible: selected + direct neighbors
+		var visible = new Set();
+		filteredNodes.forEach(n => { if (sel.has(String(n.id))) visible.add(String(n.id)); });
+		edges.forEach(e => {
+			if (sel.has(String(e.source)) || sel.has(String(e.target))) {
+				visible.add(String(e.source));
+				visible.add(String(e.target));
+			}
+		});
+		filteredNodes = filteredNodes.filter(n => visible.has(String(n.id)));
+	}
 	// Coerce to string so integer IDs and string IDs both match
 	var nodeIds = new Set(filteredNodes.map(n => String(n.id)));
 
@@ -174,15 +189,38 @@ var reindexArray = function(arr) {
 
 var drawMap = function() {
 	var container = document.getElementById('map_container');
-	var physics = true;
-	var dataOptions = {
-		action: "ajax_interface_map",
-		rule_id: rule_id,
-		__csrf_magic: csrfMagicToken,
-	};
 
-	if (mapOptions.ajax == true) {
-		$.ajax({
+	// If no map (rule) is selected and there are no host filters selected,
+	// don't fetch or render a map by default — show a helpful placeholder instead.
+	var selectedHostsExist = Array.isArray(mapOptions.selectedHosts) && mapOptions.selectedHosts.length > 0;
+	// Only treat a map as "selected" when the toolbar SelectBox actually has a user-chosen value.
+	var selectBoxValue = (typeof selectBox !== 'undefined' && selectBox && typeof selectBox.option === 'function') ? selectBox.option('value') : null;
+	var hasMapSelected = selectBoxValue !== null && selectBoxValue !== undefined && String(selectBoxValue) !== '';
+	// If neither a map nor hosts are selected, show placeholder and skip rendering
+	if (!selectedHostsExist && !hasMapSelected) {
+		stopLiveUpdates();
+		// clear any existing visualization and show a placeholder message
+		d3.select("#map_container").selectAll("*").remove();
+		if (container) {
+			container.style.minHeight = '300px';
+			container.innerHTML = "<div style='text-align:center;color:#666;padding:20px;max-width:560px;'><div style='font-size:20px;margin-bottom:8px;font-weight:600;'>No map selected</div><div>Select a map from the toolbar or choose one or more host(s) to view neighbor relationships.</div></div>";
+		}
+		// Clear any previously loaded data and don't proceed with AJAX
+		nodesData = [];
+		edgesData = [];
+		mapOptions.ajaxNodes = [];
+		mapOptions.ajaxEdges = [];
+		return;
+	}
+		var physics = true;
+		var dataOptions = {
+			action: "ajax_interface_map",
+			rule_id: rule_id,
+			__csrf_magic: csrfMagicToken,
+			selected_hosts: (mapOptions.selectedHosts && mapOptions.selectedHosts.length) ? mapOptions.selectedHosts.join(',') : ''
+		};
+		if (mapOptions.ajax == true) {
+			$.ajax({
 			method: "POST",
 			url: "ajax.php",
 			data: dataOptions,
@@ -191,6 +229,12 @@ var drawMap = function() {
 				var responseArray = response.Response?.[0] || [];
 				var edges = responseArray.edges || [];
 				var nodes = responseArray.nodes || [];
+
+				// If the user has selected hosts, pre-filter edges returned by server as a safety net
+				if (mapOptions.selectedHosts && mapOptions.selectedHosts.length) {
+					var sel = new Set(mapOptions.selectedHosts.map(String));
+					edges = edges.filter(e => sel.has(String(e.from)) || sel.has(String(e.to)) || sel.has(String(e.source)) || sel.has(String(e.target)));
+				}
 				// Preserve previously pinned positions so live updates don't re-scatter nodes
 				if (nodesData.length) {
 					var posMap = {};
@@ -299,15 +343,27 @@ function processEdgeData(edges) {
 function createVisualization(container, nodes, physicalEdges, logicalEdges, physics) {
 	d3.select("#map_container").selectAll("*").remove();
 
-	// Use container width; fall back to window dimensions if container has no computed size
-	var width  = container.clientWidth  || window.innerWidth  || 1200;
-	var height = container.clientHeight || window.innerHeight || 700;
+	// Determine container size robustly — prefer the element's client size but
+	// expand it to fill the visible viewport area when the parent uses
+	// percentage heights (this prevents nodes being clipped at the bottom).
+	var rect = container.getBoundingClientRect();
+	var clientW = container.clientWidth || 0;
+	var clientH = container.clientHeight || 0;
 
-	// If still zero (percentage-height parent not resolved), use window
-	if (height < 100) height = Math.max(window.innerHeight - 150, 600);
-	if (width  < 100) width  = Math.max(window.innerWidth  - 40,  800);
+	// Compute available viewport space below the container's top edge and use it
+	var viewportAvailableH = Math.max(0, window.innerHeight - rect.top - 20); // 20px bottom margin
+	var width  = Math.max(clientW, Math.min(window.innerWidth,  Math.max(800, clientW || 800)));
+	var height = Math.max(clientH, Math.min(viewportAvailableH, Math.max(600, clientH || 600)));
 
-	// Resize the container element itself so it has real pixel dimensions
+	// If the container was using percentage heights and clientH is small, grow it to use viewport space
+	if (clientH < Math.min(600, viewportAvailableH)) {
+		height = Math.max(600, viewportAvailableH);
+		container.style.height = height + "px"; // expand the container so SVG uses full visible area
+	}
+
+	if (width < 100) width = Math.max(window.innerWidth - 40, 800);
+
+	// Ensure the container has explicit pixel dimensions for consistent dragging/clamping
 	container.style.width  = width  + "px";
 	container.style.height = height + "px";
 
@@ -619,12 +675,36 @@ function dragstarted(event, d) {
 }
 
 function dragged(event, d) {
-	d.fx = event.x;
-	d.fy = event.y;
+	// Prevent nodes from being dragged outside the visible canvas by clamping coordinates
+	var w = (network && network.width) ? network.width : (document.getElementById('map_container')?.clientWidth || window.innerWidth);
+	var h = (network && network.height) ? network.height : (document.getElementById('map_container')?.clientHeight || window.innerHeight);
+	var pad = Math.max(nodeSize, 40); // keep icon fully visible
+	var minX = pad / 2;
+	var maxX = Math.max(minX, w - pad / 2);
+	var minY = pad / 2;
+	var maxY = Math.max(minY, h - pad / 2);
+
+	var nx = Math.max(minX, Math.min(event.x, maxX));
+	var ny = Math.max(minY, Math.min(event.y, maxY));
+
+	d.fx = nx;
+	d.fy = ny;
 }
 
 function dragended(event, d) {
 	if (!event.active) simulation.alphaTarget(0);
+	// Ensure final pinned position also remains within bounds
+	var w = (network && network.width) ? network.width : (document.getElementById('map_container')?.clientWidth || window.innerWidth);
+	var h = (network && network.height) ? network.height : (document.getElementById('map_container')?.clientHeight || window.innerHeight);
+	var pad = Math.max(nodeSize, 40);
+	var minX = pad / 2;
+	var maxX = Math.max(minX, w - pad / 2);
+	var minY = pad / 2;
+	var maxY = Math.max(minY, h - pad / 2);
+
+	d.fx = Math.max(minX, Math.min(d.fx, maxX));
+	d.fy = Math.max(minY, Math.min(d.fy, maxY));
+
 	// Keep fx/fy set so the node stays exactly where the user left it.
 	// Do NOT null them out — that would release the pin and let the sim bounce the node.
 	d3.select(this).select(".node-icon").style("cursor", "grab");

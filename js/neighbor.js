@@ -10,14 +10,13 @@ var	user_id;
 var ruleDropdown = function() {
 	
 	$.ajax({
-			method: "GET",
-			url: "ajax.php?action=ajax_map_list&format=jsonp",
-			dataType: "jsonp",
-			success: function( response ) {
-				console.log(response);
-				mapList = typeof(response.Response[0]) === 'undefined' ? [] : response.Response[0];
-				selectBox.option('items',mapList);
-			}
+		method: "GET",
+		url: "ajax.php?action=ajax_map_list&format=jsonp",
+		dataType: "jsonp",
+		success: function( response ) {
+			mapList = typeof(response.Response[0]) === 'undefined' ? [] : response.Response[0];
+			selectBox.option('items',mapList);
+		}
 	});
 }
 
@@ -52,36 +51,27 @@ $(document).ready(function() {
 	
 	var tabSelected = $("#tab_selected").length > 0 ? $("#tab_selected") : 0;
 	
+	// Tabs
 	$("#neighbor_tabs").dxTabs({
-	    items: tabs,
-	    width: "99%",
+		items: tabs,
+		width: "99%",
 		selectedIndex: tabSelected,
-	    onItemClick: function(e) {
-		var redirectUrl = 'neighbor.php?action=' + e.itemData.content;
-		window.location.href = redirectUrl;
-	    }
+		onItemClick: function(e) {
+			var redirectUrl = 'neighbor.php?action=' + e.itemData.content;
+			window.location.href = redirectUrl;
+		}
 	});
-	
-	
+
 	// Map Toolbar
-	
-	if ($("#neighbor_map_toolbar").length) { 
-	
-		//	mapList = $.map(obj, function(value, index) { return [value]; });
-		console.log("mapList:",mapList);
-		console.log("Type of Response:",typeof(mapList));
-				
-		mapToolbar = $("#neighbor_map_toolbar").dxToolbar({
-			width: "99%",
-			onInitialized: function() {
-				ruleDropdown(user_id,rule_id);
-			},
-			dataSource: [
+	if ($("#neighbor_map_toolbar").length) {
+
+		function buildToolbarDataSource() {
+			return [
 				{
-				location: 'before',
-				locateInMenu: 'auto',
-				locateInMenu: 'never',
-                template: function() {
+					location: 'before',
+					locateInMenu: 'auto',
+					locateInMenu: 'never',
+					template: function() {
 						return $("<div class='toolbar-label' style='padding-left: 10px;'><b>Select a Map :</b></div>");
 					},
 				},
@@ -98,31 +88,59 @@ $(document).ready(function() {
 							return "<div class='custom-item'><span class='"+icon+"' style='padding-right: 5px'></span>"+ data.name +"</div>";
 						},
 						onValueChanged: function(e){
-							var value = e.value;
-							console.log("Drawing graph with id:",value);
-							rule_id = value;
+							rule_id = e.value;
 							drawMap();
 						},
-						onInitialized: function(e) {                 
-							selectBox = e.component; 				// Save the component to access later
+						onInitialized: function(e) {
+							selectBox = e.component;
 						}
 					}
 				},
 				{
 					location: 'before',
 					locateInMenu: 'auto',
-					widget: 'dxTextBox',
+					widget: 'dxSelectBox',
 					options: {
-						placeholder: "Filter the hosts",
-						onChange: function(e) { console.log("E is:",e); filterHosts(e);}
+						items: [],
+						displayExpr: 'name',
+						valueExpr: 'id',
+						placeholder: 'Select host(s)...',
+						searchEnabled: true,
+						showSelectionControls: true,
+						value: [],
+						multiple: true,
+						onInitialized: function(e) {
+							var comp = e.component;
+							$.ajax({
+								method: 'GET',
+								url: 'ajax.php?action=ajax_neighbor_hosts&format=jsonp',
+								dataType: 'jsonp',
+								success: function(resp) {
+									var items = resp.Response?.[0] || [];
+									comp.option('items', items);
+								}
+							});
+						},
+						onValueChanged: function(e) {
+							// normalize value to an array (DevExpress may provide single value or array)
+							var raw = e.value;
+							var vals = Array.isArray(raw) ? raw : (raw == null ? [] : [raw]);
+							mapOptions.selectedHosts = vals.map(function(v){
+								if (v && typeof v === 'object') {
+									return (v.id !== undefined) ? v.id : (v.value !== undefined ? v.value : null);
+								}
+								return v;
+							}).filter(function(x){ return x !== null && x !== undefined && x !== ''; });
+							mapOptions.ajax = true;
+							drawMap();
+						}
 					}
-					
 				},
 				{
-				location: 'before',
-				locateInMenu: 'auto',
-				//locateInMenu: 'never',
-                template: function() {
+					location: 'before',
+					locateInMenu: 'auto',
+					//locateInMenu: 'never',
+					template: function() {
 						return $("<div class='toolbar-label' style='padding-left: 10px;'><b>Last Seen :</b></div>");
 					},
 				},
@@ -145,7 +163,6 @@ $(document).ready(function() {
 						},
 						onValueChanged: function(e) { updateLastSeen(e);},
 					}
-					
 				},
 				{
 					locateInMenu: 'always',
@@ -159,15 +176,14 @@ $(document).ready(function() {
 					text: 'Reset',
 					onClick: function() {
 						 var result = DevExpress.ui.dialog.confirm("Are you sure?", "Reset map to default");
-							result.done(function (dialogResult) {
-							if (dialogResult) {
-								resetMap();
-							}
-							else {
-								DevExpress.ui.notify("Reset cancelled","warning",3000);
-							}
+						result.done(function (dialogResult) {
+						if (dialogResult) {
+							resetMap();
+						}
+						else {
+							DevExpress.ui.notify("Reset cancelled","warning",3000);
+						}
 						});
-						
 					}
 				},
 				{
@@ -178,12 +194,15 @@ $(document).ready(function() {
 						DevExpress.ui.notify("Seed is: " + seed);
 					}
 				}
-			]
-				
-		}).dxToolbar("instance");
+			];
+		}
 
-	
+		mapToolbar = $("#neighbor_map_toolbar").dxToolbar({
+			width: "99%",
+			onInitialized: function() {
+				ruleDropdown(user_id,rule_id);
+			},
+			dataSource: buildToolbarDataSource()
+		}).dxToolbar("instance");
 	}
-	
-	
 });

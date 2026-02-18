@@ -1693,8 +1693,31 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	$res_y       = isset_request_var('res_y') ? get_request_var('res_y') : 1080;
 	$user_id     = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : 0;
 
-	// Get neighbor objects and extract unique hosts
+	// Get neighbor objects and (optionally) filter by selected hosts
 	$neighbor_objects = get_neighbor_objects_by_rule($rule_id, $host_filter, $edge_filter);
+
+	// If client supplied selected_hosts (comma-separated ids), filter neighbor_objects to only include
+	// relationships where host_id or neighbor_host_id matches one of the selected IDs.
+	$selected_hosts_param = isset_request_var('selected_hosts') ? get_request_var('selected_hosts') : '';
+	if ($selected_hosts_param) {
+		$ids = array_filter(array_map('intval', explode(',', $selected_hosts_param)));
+		if (count($ids)) {
+			$filtered = [];
+			foreach ($neighbor_objects as $hostname => $rec1) {
+				foreach ($rec1 as $neighbor_name => $rec2) {
+					foreach ($rec2 as $iface => $rec3) {
+						if (in_array((int) $rec3['host_id'], $ids, true) || in_array((int) $rec3['neighbor_host_id'], $ids, true)) {
+							if (!isset($filtered[$hostname])) $filtered[$hostname] = [];
+							if (!isset($filtered[$hostname][$neighbor_name])) $filtered[$hostname][$neighbor_name] = [];
+							$filtered[$hostname][$neighbor_name][$iface] = $rec3;
+						}
+					}
+				}
+			}
+			$neighbor_objects = $filtered;
+		}
+	}
+
 	$hosts_arr        = extract_unique_hosts_from_neighbors($neighbor_objects);
 	$sites            = get_site_coords($hosts_arr);
 
