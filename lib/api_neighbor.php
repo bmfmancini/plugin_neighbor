@@ -254,10 +254,10 @@ function neighbor_global_item_edit($rule_id, $rule_item_id, $rule_type) {
 	}
 
 	if (!empty($rule_item_id)) {
-		$neighbor_item = db_fetch_row("SELECT *
+		$neighbor_item = db_fetch_row_prepared("SELECT *
 			FROM $item_table
-			WHERE id=$rule_item_id
-			$sql_and");
+			WHERE id = ?
+			$sql_and", [$rule_item_id]);
 
 		$header_label = __('Rule Item [edit rule item for %s: %s]', $title, $neighbor_rule['name']);
 	} else {
@@ -394,10 +394,10 @@ function neighbor_render_device_filter_form($url) {
  */
 function neighbor_build_host_filter_sql($rule_id, $rule_type) {
 	$sql_where = '';
+	$where_params = [];
 
 	if (get_request_var('filterd') != '') {
 		$where_conditions = [];
-		$where_params     = [];
 
 		array_push($where_conditions, 'h.hostname LIKE ?');
 		array_push($where_params, '%' . get_request_var('filterd') . '%');
@@ -420,7 +420,8 @@ function neighbor_build_host_filter_sql($rule_id, $rule_type) {
 	} elseif (get_request_var('host_status') == '-4') {
 		$sql_where .= ($sql_where != '' ? " AND (h.status != 3 AND h.disabled = '')" : "WHERE (h.status != 3 AND h.disabled = '')");
 	} else {
-		$sql_where .= ($sql_where != '' ? ' AND (h.status=' . get_request_var('host_status') . " AND h.disabled = '')" : 'WHERE (h.status=' . get_request_var('host_status') . " AND h.disabled = '')");
+		$sql_where .= ($sql_where != '' ? ' AND (h.status = ? AND h.disabled = \'\')' : 'WHERE (h.status = ? AND h.disabled = \'\')');
+		array_push($where_params, get_request_var('host_status'));
 	}
 
 	if (get_request_var('host_template_id') == '-1') {
@@ -428,10 +429,11 @@ function neighbor_build_host_filter_sql($rule_id, $rule_type) {
 	} elseif (get_request_var('host_template_id') == '0') {
 		$sql_where .= ($sql_where != '' ? ' AND h.host_template_id=0' : 'WHERE h.host_template_id=0');
 	} elseif (!isempty_request_var('host_template_id')) {
-		$sql_where .= ($sql_where != '' ? ' AND h.host_template_id=' . get_request_var('host_template_id') : 'WHERE h.host_template_id=' . get_request_var('host_template_id'));
+		$sql_where .= ($sql_where != '' ? ' AND h.host_template_id = ?' : 'WHERE h.host_template_id = ?');
+		array_push($where_params, get_request_var('host_template_id'));
 	}
 
-	return $sql_where;
+	return ['sql' => $sql_where, 'params' => $where_params];
 }
 
 /**
@@ -446,9 +448,17 @@ function neighbor_build_host_filter_sql($rule_id, $rule_type) {
  * 
  * @return array Array of matching hosts
  */
-function neighbor_get_matching_hosts($rule_id, $rule_type, $sql_where, $rows, $page, &$total_rows) {
+function neighbor_get_matching_hosts($rule_id, $rule_type, $sql_where_package, $rows, $page, &$total_rows) {
 	$host_graphs       = array_rekey(db_fetch_assoc('SELECT host_id, count(*) as graphs FROM graph_local GROUP BY host_id'), 'host_id', 'graphs');
 	$host_data_sources = array_rekey(db_fetch_assoc('SELECT host_id, count(*) as data_sources FROM data_local GROUP BY host_id'), 'host_id', 'data_sources');
+
+	if (is_array($sql_where_package)) {
+		$sql_where    = $sql_where_package['sql'];
+		$where_params = $sql_where_package['params'];
+	} else {
+		$sql_where    = $sql_where_package;
+		$where_params = [];
+	}
 
 	$sql_query = 'SELECT h.id AS host_id, h.hostname, h.description, h.disabled, h.status, ht.name AS host_template_name '
 		. 'FROM host AS h '
@@ -461,7 +471,6 @@ function neighbor_get_matching_hosts($rule_id, $rule_type, $sql_where, $rows, $p
 	}
 
 	$rows_query   = $sql_query . $sql_where . $sql_filter;
-	$where_params = []; // Would need to pass params if using prepared statements fully
 
 	if (count($where_params) > 0) {
 		$total_rows = count((array) db_fetch_assoc_prepared($rows_query, $where_params));
@@ -1449,6 +1458,7 @@ function neighbor_rule_to_json($rule_id) {
 	if ($ajax) {
 		header('Content-Type: application/json');
 		$callback = get_request_var('callback', 'Callback');
+		$callback = preg_replace('/[^a-zA-Z0-9_]/', '', $callback);
 		print $format == 'jsonp' ? $callback . '(' . $json . ')' : $json;
 	} else {
 		return ($json);
@@ -1709,6 +1719,7 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 
 	// Prepare and return JSON response
 	$query_callback = get_request_var('callback', 'Callback');
+	$query_callback = preg_replace('/[^a-zA-Z0-9_]/', '', $query_callback);
 	$data['nodes']  = $projected;
 	$data['edges']  = $edges;
 
