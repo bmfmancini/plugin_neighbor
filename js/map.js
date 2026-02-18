@@ -1,5 +1,5 @@
 
-// D3.js-based Network Visualization (formerly vis.js)
+// D3.js-based Network Visualization
 var tooltips = [];		// Array to store and destroy tooltips
 var mapOptions = {
 	ajax: true				// Fetch from Ajax by default	
@@ -8,23 +8,8 @@ var nodesData = [];			// Native array for nodes
 var edgesData = [];			// Native array for edges
 var simulation = null;		// D3 force simulation
 var svg = null;				// SVG container
-var container = null;		// DOM container element
 var zoom = null;			// D3 zoom behavior
-var transform = d3.zoomIdentity;  // Current zoom transform
 var network = {};			// Network object for compatibility
-
-// Maintain some backwards compatibility as Object.keys not universally available.
-Object.size = function(obj) {
-var size = 0, key;
-	for (key in obj) {
-		if (obj.hasOwnProperty(key)) size++;
-	}
-	return size;
-};
-
-// Add compatibility methods to network object
-network.width = 1280;
-network.height = 1080;
 
 // Color Generation - credits to Euler Junior - https://stackoverflow.com/a/32257791
 
@@ -100,31 +85,33 @@ var rotateMap = function(e) {
 	console.log("Now:",nowVal,"Last:",lastVal,"Degrees:",nowVal-lastVal);
 	var degrees = nowVal-lastVal;
 	mapOptions.rotateDegrees = degrees;
-	network.storePositions();
-	var items = nodesData.get();
-	var pointStore=[];
-	for (i in items) {
-		converted = network.DOMtoCanvas({x:items[i].x, y:items[i].y});
-		pointStore.push([Point(converted.x,converted.y),1]);
-		
+	
+	// Get current positions
+	var positions = network.getPositions();
+	var pointStore = [];
+	for (var id in positions) {
+		var pos = positions[id];
+		pointStore.push([Point(pos.x, pos.y), 1]);
 	}
+	
 	var centreCoord = calcWeightedMidpoint(pointStore);		// Find the centre of the map to rotate around that
-	console.log('Points are:',pointStore);
-	console.log('Centre is:',centreCoord);
-	for (i in items) {
-			var currentX = items[i].x;
-			var currentY = items[i].y;
-			newPoint = rotatePoint(centreCoord.x,centreCoord.y,currentX,currentY,degrees);
-			console.log("Item moves from:",currentX,",",currentY,'to:',newPoint.x,",",newPoint.y);
-			items[i].x = newPoint.x;
-			items[i].y = newPoint.y;
+	console.log('Centre is:', centreCoord);
+	
+	// Rotate each node's position
+	for (var i = 0; i < nodesData.length; i++) {
+		var node = nodesData[i];
+		var currentX = node.x;
+		var currentY = node.y;
+		var newPoint = rotatePoint(centreCoord.x, centreCoord.y, currentX, currentY, degrees);
+		node.x = newPoint.x;
+		node.y = newPoint.y;
+		node.fx = newPoint.x;  // Fix position to prevent simulation from moving it
+		node.fy = newPoint.y;
 	}
-	nodesData = items;
-	var data = {
-		  nodes: nodesData,
-		  edges: edgesData
-	};
-	network.setData(data);
+	
+	// Update simulation
+	simulation.nodes(nodesData);
+	simulation.alpha(0.3).restart();
 	
 }
 
@@ -140,14 +127,10 @@ var storeCoords = function() {
 		};
 	});
 	
-	var seed = 0; // D3 doesn't use seed the same way
-	var options = [];
-	
-	var canvas_x = container ? container.clientWidth : 1280;
-	var canvas_y = container ? container.clientHeight : 1080;
+	var canvas_x = network.width;
+	var canvas_y = network.height;
 	
 	var jsonItems = JSON.stringify(items);
-	var jsonOptions = JSON.stringify(options);
 	console.log("Projected JSON:",jsonItems);
 	$.ajax({
 		method: "POST",
@@ -157,12 +140,10 @@ var storeCoords = function() {
 			action: "ajax_map_save_options",
 			__csrf_magic: csrfMagicToken,
 			items: jsonItems,
-			options: jsonOptions,
 			user_id: user_id,
 			rule_id: rule_id,
 			canvas_x: canvas_x,
-			canvas_y: canvas_y,
-			seed: seed
+			canvas_y: canvas_y
 		},
 		success: function(response) {
 			message = typeof(response.Response[0].message) === 'undefined' ? "" : response.Response[0].message;
@@ -304,7 +285,6 @@ var drawMap = function() {
 					console.log("drawMap(): mapOptions AFTER AJAX is",mapOptions);
 					
 					physics = !(typeof(responseArray.physics) === 'undefined') ? responseArray.physics : true;
-					seed = responseArray.seed ? responseArray.seed : false;
 
 					console.log("Physics:",physics);
 					console.log("Physics:",responseArray.physics);
@@ -335,8 +315,15 @@ var drawMap = function() {
 						}
 					}
 					
-					var scalingOptions = { min: 1, max: 5, label: { enabled: false}};
-					//scalingOptions = {};
+					// Filter invalid edges and nodes
+					nodes = nodes.filter(function(n) { return n.id != null; });
+					var nodeIds = {};
+					nodes.forEach(function(n) { nodeIds[n.id] = true; });
+					edges = edges.filter(function(e) { return e.from != null && e.to != null && nodeIds[e.from] && nodeIds[e.to]; });
+					edges.forEach(function(e) {
+						e.source = e.from;
+						e.target = e.to;
+					});
 					
 					// Filter out nodes
 					
@@ -359,7 +346,7 @@ var drawMap = function() {
 								}
 							}
 						}
-						// VisJS breaks if the keys aren't sequential, so after deleting the nodes we're filtering, we need to reindex the objects again
+						// D3 requires sequential arrays, so after deleting the nodes we're filtering, we need to reindex the objects again
 						edges = reindexObject(edges);
 						nodes = reindexObject(nodes);
 					}
@@ -384,13 +371,6 @@ var drawMap = function() {
 						}
 					};
 					
-					if (seed) {
-						options.layout.randomSeed = seed;
-						console.log("Set random_seed to:",seed);
-						console.log("Options now:",options);
-						console.log("Nodes is:",nodesData);
-					}
-		
 					// create a network
 					console.log("Network Data:",data);
 					console.log("Network Options:",options);
@@ -402,20 +382,30 @@ var drawMap = function() {
 					var svg = d3.select(container).append("svg")
 						.attr("width", width)
 						.attr("height", height);
+					
+					// Add zoom behavior
+					var zoom = d3.zoom()
+						.scaleExtent([0.1, 4])
+						.on("zoom", zoomed);
+					
+					svg.call(zoom);
+					
+					// Create groups for links and nodes
+					var linkGroup = svg.append("g").attr("class", "links");
+					var nodeGroup = svg.append("g").attr("class", "nodes");
+					
 					var simulation = d3.forceSimulation(nodes)
 						.force("link", d3.forceLink(edges).id(d => d.id).distance(100))
 						.force("charge", d3.forceManyBody().strength(-300))
 						.force("center", d3.forceCenter(width / 2, height / 2));
 					if (!physics) simulation.stop();
-					var link = svg.append("g")
-						.attr("class", "links")
+					var link = linkGroup
 						.selectAll("line")
 						.data(edges)
 						.enter().append("line")
 						.attr("stroke", d => d.color ? d.color.color : "#999")
 						.attr("stroke-width", d => Math.sqrt(d.value) || 1);
-					var node = svg.append("g")
-						.attr("class", "nodes")
+					var node = nodeGroup
 						.selectAll("g")
 						.data(nodes)
 						.enter().append("g")
@@ -431,13 +421,13 @@ var drawMap = function() {
 						.attr("dy", ".35em")
 						.text(d => d.label)
 						.style("font-size", "7px");
-					link.on("dblclick", function(d) {
+					link.on("dblclick", function(event, d) {
 						console.log("Doubleclick fired with d=",d);
 						var edgeId = d.id;
 						var edge = d;
 						console.log("Edge:",edge);
-						var x = d3.event.clientX;
-						var y = d3.event.clientY;
+						var x = event.clientX;
+						var y = event.clientY;
 						if (edge.graph_id) {
 							console.log("Starting on edge.");
 							if (!$("div."+edgeId).length) {
@@ -455,11 +445,11 @@ var drawMap = function() {
 							var graph_height = 150;
 							var graph_width = 600;
 							var rra_id = 1;
-							var url = '../../graph_json.php?' + 'local_graph_id=' + graph_id + '&graph_height=' + graph_height +
-									  '&graph_start=' + graph_start + '&graph_end=' + graph_end + '&rra_id=' + rra_id + '&graph_width=' + graph_width +'&disable_cache=true';
 							var d = new Date();
 							var graph_end = Math.round(d.getTime() / 1000);
 							var graph_start = graph_end - 86400;
+							var url = '../../graph_json.php?' + 'local_graph_id=' + graph_id + '&graph_height=' + graph_height +
+									  '&graph_start=' + graph_start + '&graph_end=' + graph_end + '&rra_id=' + rra_id + '&graph_width=' + graph_width +'&disable_cache=true';
 							
 							 $.ajax({
 								dataType: "json",
@@ -507,9 +497,9 @@ var drawMap = function() {
 						}
 					});
 					
-					node.on("drag", function() { hideTooltips();});
-					svg.on("wheel", function() { hideTooltips();});
-					svg.on("click", function() { hideTooltips();});
+					node.on("drag", function(event) { hideTooltips();});
+					svg.on("wheel", function(event) { hideTooltips();});
+					svg.on("click", function(event) { hideTooltips();});
 					
 					simulation
 						.nodes(nodes)
@@ -525,17 +515,21 @@ var drawMap = function() {
 						node
 							.attr("transform", d => `translate(${d.x},${d.y})`);
 					}
-					function dragstarted(d) {
-						if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+					function zoomed(event) {
+						linkGroup.attr("transform", event.transform);
+						nodeGroup.attr("transform", event.transform);
+					}
+					function dragstarted(event, d) {
+						if (!event.active) simulation.alphaTarget(0.3).restart();
 						d.fx = d.x;
 						d.fy = d.y;
 					}
-					function dragged(d) {
-						d.fx = d3.event.x;
-						d.fy = d3.event.y;
+					function dragged(event, d) {
+						d.fx = event.x;
+						d.fy = event.y;
 					}
-					function dragended(d) {
-						if (!d3.event.active) simulation.alphaTarget(0);
+					function dragended(event, d) {
+						if (!event.active) simulation.alphaTarget(0);
 						d.fx = null;
 						d.fy = null;
 					}
@@ -562,16 +556,21 @@ var drawMap = function() {
 							// For refresh
 							this.nodes = data.nodes;
 							this.edges = data.edges;
+							// Set source and target
+							this.edges.forEach(function(e) {
+								e.source = e.from;
+								e.target = e.to;
+							});
 							// Update simulation
 							simulation.nodes(this.nodes);
 							simulation.force("link").links(this.edges);
 							// Update svg
-							link = link.data(this.edges);
+							link = linkGroup.selectAll("line").data(this.edges);
 							link.exit().remove();
 							link = link.enter().append("line").merge(link)
 								.attr("stroke", d => d.color ? d.color.color : "#999")
 								.attr("stroke-width", d => Math.sqrt(d.value) || 1);
-							node = node.data(this.nodes);
+							node = nodeGroup.selectAll("g").data(this.nodes);
 							node.exit().remove();
 							node = node.enter().append("g").merge(node)
 								.call(d3.drag()
@@ -600,6 +599,15 @@ var drawMap = function() {
 		
 		var nodes = mapOptions.ajaxNodes.slice();
 		var edges = mapOptions.ajaxEdges.slice();
+		// Filter invalid edges and nodes
+		nodes = nodes.filter(function(n) { return n.id != null; });
+		var nodeIds = {};
+		nodes.forEach(function(n) { nodeIds[n.id] = true; });
+		edges = edges.filter(function(e) { return e.from != null && e.to != null && nodeIds[e.from] && nodeIds[e.to]; });
+		edges.forEach(function(e) {
+			e.source = e.from;
+			e.target = e.to;
+		});
 		var keeping = [];
 		console.log("Refreshing only. mapOptions:",mapOptions,",nodes:",nodes,",edges:",edges);
 		if (mapOptions.hostFilter || mapOptions.lastSeen) {
