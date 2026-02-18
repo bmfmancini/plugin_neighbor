@@ -394,16 +394,50 @@ var drawMap = function() {
 					// create a network
 					console.log("Network Data:",data);
 					console.log("Network Options:",options);
-					network = new vis.Network(container, data, options);
-					console.log("Created the new vis.Network");
-					// doubleClick event handler
-					network.on('doubleClick', function(e) {
-						console.log("Doubleclick fired with e=",e);
-						var edgeId = typeof(e.edges[0]) === 'undefined' ? [] : e.edges[0];
-						var edge = edgesData.get(edgeId);
+					// network = new vis.Network(container, data, options);
+					// D3 code here
+					d3.select("#map_container").selectAll("*").remove();
+					var width = container.clientWidth || 800;
+					var height = container.clientHeight || 600;
+					var svg = d3.select(container).append("svg")
+						.attr("width", width)
+						.attr("height", height);
+					var simulation = d3.forceSimulation(nodes)
+						.force("link", d3.forceLink(edges).id(d => d.id).distance(100))
+						.force("charge", d3.forceManyBody().strength(-300))
+						.force("center", d3.forceCenter(width / 2, height / 2));
+					if (!physics) simulation.stop();
+					var link = svg.append("g")
+						.attr("class", "links")
+						.selectAll("line")
+						.data(edges)
+						.enter().append("line")
+						.attr("stroke", d => d.color ? d.color.color : "#999")
+						.attr("stroke-width", d => Math.sqrt(d.value) || 1);
+					var node = svg.append("g")
+						.attr("class", "nodes")
+						.selectAll("g")
+						.data(nodes)
+						.enter().append("g")
+						.call(d3.drag()
+							.on("start", dragstarted)
+							.on("drag", dragged)
+							.on("end", dragended));
+					node.append("circle")
+						.attr("r", 5)
+						.attr("fill", d => d.color || "#33cccc");
+					node.append("text")
+						.attr("dx", 12)
+						.attr("dy", ".35em")
+						.text(d => d.label)
+						.style("font-size", "7px");
+					link.on("dblclick", function(d) {
+						console.log("Doubleclick fired with d=",d);
+						var edgeId = d.id;
+						var edge = d;
 						console.log("Edge:",edge);
-						var x = e.event.center.x;
-						var y = e.event.center.y;
+						var x = d3.event.clientX;
+						var y = d3.event.clientY;
 						if (edge.graph_id) {
 							console.log("Starting on edge.");
 							if (!$("div."+edgeId).length) {
@@ -470,13 +504,93 @@ var drawMap = function() {
 								}
 							 });
 							
-							
 						}
 					});
 					
-					network.on("dragging", function() { hideTooltips();});
-					network.on("zoom", function() { hideTooltips();});
-					network.on("click", function() { hideTooltips();});
+					node.on("drag", function() { hideTooltips();});
+					svg.on("wheel", function() { hideTooltips();});
+					svg.on("click", function() { hideTooltips();});
+					
+					simulation
+						.nodes(nodes)
+						.on("tick", ticked);
+					simulation.force("link")
+						.links(edges);
+					function ticked() {
+						link
+							.attr("x1", d => d.source.x)
+							.attr("y1", d => d.source.y)
+							.attr("x2", d => d.target.x)
+							.attr("y2", d => d.target.y);
+						node
+							.attr("transform", d => `translate(${d.x},${d.y})`);
+					}
+					function dragstarted(d) {
+						if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+						d.fx = d.x;
+						d.fy = d.y;
+					}
+					function dragged(d) {
+						d.fx = d3.event.x;
+						d.fy = d3.event.y;
+					}
+					function dragended(d) {
+						if (!d3.event.active) simulation.alphaTarget(0);
+						d.fx = null;
+						d.fy = null;
+					}
+					// Set network for compatibility
+					network = {
+						simulation: simulation,
+						svg: svg,
+						nodes: nodes,
+						edges: edges,
+						width: width,
+						height: height,
+						storePositions: function() {
+							// Do nothing, positions are in nodes
+						},
+						getPositions: function() {
+							var positions = {};
+							nodes.forEach(n => positions[n.id] = {x: n.x, y: n.y});
+							return positions;
+						},
+						getSeed: function() {
+							return seed;
+						},
+						setData: function(data) {
+							// For refresh
+							this.nodes = data.nodes;
+							this.edges = data.edges;
+							// Update simulation
+							simulation.nodes(this.nodes);
+							simulation.force("link").links(this.edges);
+							// Update svg
+							link = link.data(this.edges);
+							link.exit().remove();
+							link = link.enter().append("line").merge(link)
+								.attr("stroke", d => d.color ? d.color.color : "#999")
+								.attr("stroke-width", d => Math.sqrt(d.value) || 1);
+							node = node.data(this.nodes);
+							node.exit().remove();
+							node = node.enter().append("g").merge(node)
+								.call(d3.drag()
+									.on("start", dragstarted)
+									.on("drag", dragged)
+									.on("end", dragended));
+							node.select("circle")
+								.attr("fill", d => d.color || "#33cccc");
+							node.select("text")
+								.text(d => d.label);
+							simulation.alpha(1).restart();
+						},
+						fit: function() {
+							simulation.restart();
+						}
+					};
+					console.log("Created the new d3 network");
+
+					// Removed vis event handlers, using d3 handlers
 					
 					
 				}
