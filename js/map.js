@@ -1,120 +1,76 @@
 
-// D3.js-based Network Visualization
+// D3.js Network Topology Visualization
+// Displays physical devices with router images and logical connections with lightning bolts
+
 var tooltips = [];		// Array to store and destroy tooltips
 var mapOptions = {
-	ajax: true				// Fetch from Ajax by default	
-};	// Array to store the map options
+	ajax: true,				// Fetch from Ajax by default
+	refreshInterval: 30000	// 30 seconds for live updates
+};
 var nodesData = [];			// Native array for nodes
 var edgesData = [];			// Native array for edges
 var simulation = null;		// D3 force simulation
 var svg = null;				// SVG container
 var zoom = null;			// D3 zoom behavior
 var network = {};			// Network object for compatibility
+var refreshTimer = null;	// Timer for live updates
+var nodeSize = 48;			// Icon size in pixels (controlled by slider)
+var labelSize = 12;			// Label font size in pixels (controlled by slider)
 
-// Color Generation - credits to Euler Junior - https://stackoverflow.com/a/32257791
+// SVG symbols for router icons
+const routerSymbol = `
+	<symbol id="router" viewBox="0 0 24 24">
+		<rect x="2" y="4" width="20" height="12" rx="2" fill="#e3f2fd" stroke="#1976d2" stroke-width="2"/>
+		<circle cx="6" cy="8" r="1.5" fill="#1976d2"/>
+		<circle cx="12" cy="8" r="1.5" fill="#1976d2"/>
+		<circle cx="18" cy="8" r="1.5" fill="#1976d2"/>
+		<circle cx="6" cy="12" r="1.5" fill="#1976d2"/>
+		<circle cx="12" cy="12" r="1.5" fill="#1976d2"/>
+		<circle cx="18" cy="12" r="1.5" fill="#1976d2"/>
+		<path d="M8 16 L12 20 L16 16" stroke="#1976d2" stroke-width="2" fill="none"/>
+	</symbol>
+`;
 
-function hex (c) {
-  var s = "0123456789abcdef";
-  var i = parseInt (c);
-  if (i == 0 || isNaN (c))
-	return "00";
-  i = Math.round (Math.min (Math.max (0, i), 255));
-  return s.charAt ((i - i % 16) / 16) + s.charAt (i % 16);
-}
+// Lightning bolt path generator
+function createLightningBolt(x1, y1, x2, y2, segments = 8) {
+	const dx = x2 - x1;
+	const dy = y2 - y1;
+	const distance = Math.sqrt(dx * dx + dy * dy);
+	const segmentLength = distance / segments;
 
-/* Convert an RGB triplet to a hex string */
-function convertToHex (rgb) {
-  return hex(rgb[0]) + hex(rgb[1]) + hex(rgb[2]);
-}
+	let path = `M ${x1} ${y1}`;
 
-/* Remove '#' in color hex string */
-function trim (s) { return (s.charAt(0) == '#') ? s.substring(1, 7) : s }
+	for (let i = 1; i < segments; i++) {
+		const ratio = i / segments;
+		const x = x1 + dx * ratio;
+		const y = y1 + dy * ratio;
 
-/* Convert a hex string to an RGB triplet */
-function convertToRGB (hex) {
-  var color = [];
-  color[0] = parseInt ((trim(hex)).substring (0, 2), 16);
-  color[1] = parseInt ((trim(hex)).substring (2, 4), 16);
-  color[2] = parseInt ((trim(hex)).substring (4, 6), 16);
-  return color;
-}
+		// Add zigzag perpendicular to the line
+		const angle = Math.atan2(dy, dx);
+		const offset = (i % 2 === 0 ? 1 : -1) * 3; // 3px zigzag
+		const zigzagX = x + Math.sin(angle) * offset;
+		const zigzagY = y - Math.cos(angle) * offset;
 
-function generateColor(colorStart,colorEnd,colorCount){
-
-	var start = convertToRGB (colorStart);    	// The beginning of your gradient
-	var end   = convertToRGB (colorEnd);    	// The end of your gradient
-	var len = colorCount;						// The number of colors to compute
-
-	//Alpha blending amount
-	var alpha = 0.0;
-	var colors = [];
-	
-	for (i = 0; i < len; i++) {
-		var c = [];
-		alpha += (1.0/len);
-		c[0] = start[0] * alpha + (1 - alpha) * end[0];
-		c[1] = start[1] * alpha + (1 - alpha) * end[1];
-		c[2] = start[2] * alpha + (1 - alpha) * end[2];
-		colors.push(convertToHex (c));
+		path += ` L ${zigzagX} ${zigzagY}`;
 	}
-	return colors;
+
+	path += ` L ${x2} ${y2}`;
+	return path;
 }
 
 var filterHosts = function(e) {
 	var value = e.component.option("value");
 	mapOptions.hostFilter = value;
-	mapOptions.ajax = false;		// Just repaint the map, no need to re-pull the ajax
-	console.log("Filtering hosts with value:",value,",mapOptions:",mapOptions);
+	mapOptions.ajax = false;
 	drawMap();
 }
 
 var updateLastSeen = function(e) {
 	var value = e.component.option("value");
 	mapOptions.lastSeen = value;
-	mapOptions.ajax = false;		// Just repaint the map, no need to re-pull the ajax
-	console.log("Filtering map with last_seen value:",value,",mapOptions:",mapOptions);
+	mapOptions.ajax = false;
 	drawMap();
 }
-
-
-	
-var rotateMap = function(e) {
-	
-	var lastVal = e.previousValue;
-	var nowVal = e.value;
-	console.log("Now:",nowVal,"Last:",lastVal,"Degrees:",nowVal-lastVal);
-	var degrees = nowVal-lastVal;
-	mapOptions.rotateDegrees = degrees;
-	
-	// Get current positions
-	var positions = network.getPositions();
-	var pointStore = [];
-	for (var id in positions) {
-		var pos = positions[id];
-		pointStore.push([Point(pos.x, pos.y), 1]);
-	}
-	
-	var centreCoord = calcWeightedMidpoint(pointStore);		// Find the centre of the map to rotate around that
-	console.log('Centre is:', centreCoord);
-	
-	// Rotate each node's position
-	for (var i = 0; i < nodesData.length; i++) {
-		var node = nodesData[i];
-		var currentX = node.x;
-		var currentY = node.y;
-		var newPoint = rotatePoint(centreCoord.x, centreCoord.y, currentX, currentY, degrees);
-		node.x = newPoint.x;
-		node.y = newPoint.y;
-		node.fx = newPoint.x;  // Fix position to prevent simulation from moving it
-		node.fy = newPoint.y;
-	}
-	
-	// Update simulation
-	simulation.nodes(nodesData);
-	simulation.alpha(0.3).restart();
-	
-}
-
 
 // Store the coords and options
 var storeCoords = function() {
@@ -126,17 +82,17 @@ var storeCoords = function() {
 			y: node.y
 		};
 	});
-	
+
 	var canvas_x = network.width;
 	var canvas_y = network.height;
-	
+
 	var jsonItems = JSON.stringify(items);
-	console.log("Projected JSON:",jsonItems);
+
 	$.ajax({
 		method: "POST",
 		url: "ajax.php",
 		dataType: "jsonp",
-		data : {
+		data: {
 			action: "ajax_map_save_options",
 			__csrf_magic: csrfMagicToken,
 			items: jsonItems,
@@ -146,24 +102,22 @@ var storeCoords = function() {
 			canvas_y: canvas_y
 		},
 		success: function(response) {
-			message = typeof(response.Response[0].message) === 'undefined' ? "" : response.Response[0].message;
-			DevExpress.ui.notify(message,"success",3000);
-			drawMap();
+			var message = response.Response?.[0]?.message || "";
+			DevExpress.ui.notify(message, "success", 3000);
 		},
-		error: function(e) {
-			DevExpress.ui.notify("Error saving map for user:"+user_id,"error",3000);	
+		error: function() {
+			DevExpress.ui.notify("Error saving map positions", "error", 3000);
 		}
 	});
 }
 
-// Call the AJAX to reset the map
+// Reset map positions
 var resetMap = function() {
-	
 	$.ajax({
 		method: "POST",
 		url: "ajax.php",
 		dataType: "jsonp",
-		data : {
+		data: {
 			action: "ajax_map_reset_options",
 			format: "jsonp",
 			__csrf_magic: csrfMagicToken,
@@ -171,579 +125,583 @@ var resetMap = function() {
 			rule_id: rule_id
 		},
 		success: function(response) {
-			console.log("resetMap:",response);
-			message = typeof(response.Response[0].message) === 'undefined' ? "" : response.Response[0].message;
-			DevExpress.ui.notify(message,"success",3000);
+			var message = response.Response?.[0]?.message || "";
+			DevExpress.ui.notify(message, "success", 3000);
+			mapOptions.ajax = true;
 			drawMap();
 		},
-		error: function(e) {
-			DevExpress.ui.notify("Error resetting map for user:"+user_id,"error",3000);	
+		error: function() {
+			DevExpress.ui.notify("Error resetting map", "error", 3000);
 		}
 	});
-	
 }
 
-// Map nodes to array indexed by id
-var filterNodes = function(staticNodes) {
-	
-	var nodes = staticNodes.slice();
-	var nodesId = [];
-	var filter = mapOptions.hostFilter;
-	var regex = new RegExp(filter,"i");
-	for (var node in nodes) {
-		if (nodes.hasOwnProperty(node)) {
-			var id = nodes[node].id;
-			var label = nodes[node].label;
-			console.log("filterNodes(): ID=",id,", Filter=",mapOptions.hostFilter," , Label =",label);
-			if (label.match(regex)) {
-				console.log("filterNodes(): Label matching, keeping ID:",id,", array is:",nodesId);
-				nodesId[id] = nodes[node];
-			}
-		}
-	}
-	return(nodesId);
+// Filter nodes by host pattern
+var filterNodes = function(nodes) {
+	if (!mapOptions.hostFilter) return nodes;
+
+	var regex = new RegExp(mapOptions.hostFilter, "i");
+	return nodes.filter(node => node.label.match(regex));
 }
 
-// Filter for only edges matching the hostFilter or edgeFilter values
+// Filter edges by last seen time and node filtering
+var filterEdges = function(nodes, edges) {
+	var filteredNodes = filterNodes(nodes);
+	// Coerce to string so integer IDs and string IDs both match
+	var nodeIds = new Set(filteredNodes.map(n => String(n.id)));
 
-var filterEdges = function(staticNodes,staticEdges) {
-	
-	var edges = staticEdges.slice();		// Don't work on the source variables
-	var nodes = staticNodes.slice();
-	var nodesId = filterNodes(nodes);
-	var keeping = [];
-	var momentNow = moment([]);
-	var filterLastSeen = moment([]);
-	filterLastSeen.subtract(mapOptions.lastSeen,'d');
-	console.log("Now:",momentNow.format("dddd, MMMM Do YYYY, h:mm:ss a"),"Last Seen:",filterLastSeen.format("dddd, MMMM Do YYYY, h:mm:ss a"));
-	for (var edge in edges) {
-		if (edges.hasOwnProperty(edge)) {
-			var thisEdge = edges[edge];
-			var from = thisEdge.from;
-			var to = thisEdge.to;
-			var edgeLastSeen =  moment(thisEdge.last_seen,"YYYY-MM-DD HH:mm:ss");
-			if (!(from in nodesId || to in nodesId)) {
-				console.log("Deleting edge:",edge,", data:",edges[edge]);
-				delete edges[edge];
-			}
-			else if (edgeLastSeen.isBefore(filterLastSeen) ) {
-				console.log("Delete old edge:",edgeLastSeen.format("dddd, MMMM Do YYYY, h:mm:ss a"),"Filter is:",filterLastSeen.format("dddd, MMMM Do YYYY, h:mm:ss a"));
-				delete edges[edge];
-			}
-			else {
-				keeping[from] = true;
-				keeping[to] = true;
-				console.log("Keeping edge:",edge,", data:",edges[edge],",keeping is:",keeping);
-			}
-		}
+	// Filter edges to only include those between visible nodes
+	var filteredEdges = edges.filter(edge =>
+		nodeIds.has(String(edge.source)) && nodeIds.has(String(edge.target))
+	);
+
+	// Filter by last seen if specified
+	if (mapOptions.lastSeen) {
+		var filterTime = moment().subtract(mapOptions.lastSeen, 'days');
+		filteredEdges = filteredEdges.filter(edge => {
+			var edgeTime = moment(edge.last_seen, "YYYY-MM-DD HH:mm:ss");
+			return edgeTime.isAfter(filterTime);
+		});
 	}
-	// Return an object with the filtered edges, plus the nodes we're keeping
-	return({
-		edges: edges,
-		keeping: keeping
-	});
+
+	return { nodes: filteredNodes, edges: filteredEdges };
 }
 
-var reindexObject = function(obj) {
-	var newObject = [];
-	for (var i in obj) {
-		if (obj.hasOwnProperty(i)) {
-			newObject.push(obj[i]);	
-		}
-	}
-	return(newObject);
+// Reindex arrays to ensure sequential keys
+var reindexArray = function(arr) {
+	return arr.filter(item => item != null);
 }
 
 var drawMap = function() {
-	
 	var container = document.getElementById('map_container');
 	var physics = true;
 	var dataOptions = {
-				action: "ajax_interface_map",
-				rule_id: rule_id,
-				__csrf_magic: csrfMagicToken,
+		action: "ajax_interface_map",
+		rule_id: rule_id,
+		__csrf_magic: csrfMagicToken,
 	};
-	
-	// if (mapOptions.hostFilter) { dataOptions.host_filter = mapOptions.hostFilter;	}
-	console.log("drawMap(): mapOptions is",mapOptions);
-	
+
 	if (mapOptions.ajax == true) {
-		console.log("drawMap() is fetching nodes from AJAX...");
 		$.ajax({
-				method: "POST",
-				url: "ajax.php",
-				data: dataOptions,
-				dataType: "jsonp",
-				// Work with the response
-				success: function( response ) {
-					responseArray = typeof(response.Response[0]) === 'undefined' ? [] : response.Response[0];
-					console.log("AJAX: fetch_nodes = ",responseArray ); // server response
-					var edges = typeof(responseArray.edges) === 'undefined' ? [] : responseArray.edges;
-					var nodes = typeof(responseArray.nodes) === 'undefined' ? [] : responseArray.nodes;
-					mapOptions.ajaxEdges = edges.slice();
-					mapOptions.ajaxNodes = nodes.slice();
-					console.log("drawMap(): mapOptions AFTER AJAX is",mapOptions);
-					
-					physics = !(typeof(responseArray.physics) === 'undefined') ? responseArray.physics : true;
-
-					console.log("Physics:",physics);
-					console.log("Physics:",responseArray.physics);
-					
-					// Make the color bands for the links
-					var colorArray = generateColor("#ff3300","#66ff66",10);
-					for (var i=0; i < edges.length; i++) {
-						var pollerData = edges[i].poller;
-						if (!(typeof(pollerData.traffic_in) === 'undefined')) {
-							var deltaMax = pollerData.traffic_in.delta > pollerData.traffic_out.delta ? pollerData.traffic_in.delta : pollerData.traffic_out.delta;
-							deltaMax = parseInt(deltaMax*8/1000/1000);  // Speed is in mbps
-							var intSpeed = edges[1].value;
-							var percUtilised = deltaMax / intSpeed * 100;
-							var colorIndex = parseInt(percUtilised / colorArray.length);
-							//console.log("i:",i,"deltaMax:",deltaMax,", percUtilised:",percUtilised,",colorIndex:",colorIndex,',color:',colorArray[colorIndex]);
-							var color = "#"+ colorArray[colorIndex];
-							edges[i].color = {
-								color: color,
-								highlight: color,
-								hover: color,
-								opacity:1.0
-							};
-							edges[i].label = '['+i+'] ' + edges[i].label;
-							var delta_in = Number(pollerData.traffic_in.delta * 8 / 1000 / 1000).toFixed(2);
-							var delta_out = Number(pollerData.traffic_out.delta * 8 / 1000 / 1000).toFixed(2);
-							
-							edges[i].title +="<br>Inbound: " + delta_in + "mpbs, Outbound: " + delta_out + 'mbps';
-						}
-					}
-					
-					// Filter invalid edges and nodes
-					nodes = nodes.filter(function(n) { return n.id != null; });
-					var nodeIds = {};
-					nodes.forEach(function(n) { nodeIds[n.id] = true; });
-					edges = edges.filter(function(e) { return e.from != null && e.to != null && nodeIds[e.from] && nodeIds[e.to]; });
-					edges.forEach(function(e) {
-						e.source = e.from;
-						e.target = e.to;
-					});
-					
-					// Filter out nodes
-					
-					if (mapOptions.hostFilter || mapOptions.lastSeen) {
-						console.warn("Filtering Map.");
-						var keepEdges = filterEdges(nodes,edges);
-						var keeping = keepEdges.keeping;
-						edges = keepEdges.edges;
-							
-						for (var node in nodes) {
-							if (nodes.hasOwnProperty(node)) {
-								var label = nodes[node].label;
-								var id = nodes[node].id
-								if (!(id in keeping)) { 
-									// console.log("Delete Node:",node,nodes[node]);
-									delete nodes[node];
-								}
-								else {
-									// console.log("Keep Node:",node,nodes[node]);
-								}
-							}
-						}
-						// D3 requires sequential arrays, so after deleting the nodes we're filtering, we need to reindex the objects again
-						edges = reindexObject(edges);
-						nodes = reindexObject(nodes);
-					}
-					
-					console.log("Nodes:",nodes,"Edges",edges,"Keeping",keeping);
-					nodesData = nodes;
-					edgesData = edges;
-					
-					var data = {
-					  nodes: nodesData,
-					  edges: edgesData
-					};
-					
-					var options = {
-						//physics: { stabilization: true },
-						physics: physics,
-						layout: { improvedLayout: true},
-						nodes:  { color: '#33cccc', font : {size: 7} },
-						edges:  {
-								scaling: scalingOptions,
-								//smooth:  { enabled:true, type:'continuous',forceDirection: 'none' },
-						}
-					};
-					
-					// create a network
-					console.log("Network Data:",data);
-					console.log("Network Options:",options);
-					// network = new vis.Network(container, data, options);
-					// D3 code here
-					d3.select("#map_container").selectAll("*").remove();
-					var width = container.clientWidth || 800;
-					var height = container.clientHeight || 600;
-					var svg = d3.select(container).append("svg")
-						.attr("width", width)
-						.attr("height", height);
-					
-					// Add zoom behavior
-					var zoom = d3.zoom()
-						.scaleExtent([0.1, 4])
-						.on("zoom", zoomed);
-					
-					svg.call(zoom);
-					
-					// Create groups for links and nodes
-					var linkGroup = svg.append("g").attr("class", "links");
-					var nodeGroup = svg.append("g").attr("class", "nodes");
-					
-					var simulation = d3.forceSimulation(nodes)
-						.force("link", d3.forceLink(edges).id(d => d.id).distance(100))
-						.force("charge", d3.forceManyBody().strength(-300))
-						.force("center", d3.forceCenter(width / 2, height / 2));
-					if (!physics) simulation.stop();
-					var link = linkGroup
-						.selectAll("line")
-						.data(edges)
-						.enter().append("line")
-						.attr("stroke", d => d.color ? d.color.color : "#999")
-						.attr("stroke-width", d => Math.sqrt(d.value) || 1);
-					var node = nodeGroup
-						.selectAll("g")
-						.data(nodes)
-						.enter().append("g")
-						.call(d3.drag()
-							.on("start", dragstarted)
-							.on("drag", dragged)
-							.on("end", dragended));
-					node.append("circle")
-						.attr("r", 5)
-						.attr("fill", d => d.color || "#33cccc");
-					node.append("text")
-						.attr("dx", 12)
-						.attr("dy", ".35em")
-						.text(d => d.label)
-						.style("font-size", "7px");
-					link.on("dblclick", function(event, d) {
-						console.log("Doubleclick fired with d=",d);
-						var edgeId = d.id;
-						var edge = d;
-						console.log("Edge:",edge);
-						var x = event.clientX;
-						var y = event.clientY;
-						if (edge.graph_id) {
-							console.log("Starting on edge.");
-							if (!$("div."+edgeId).length) {
-								$("#cactiContent").append("<div class='"+edgeId+"' style='left:"+x+"px; top:"+y+"px; position:absolute'></div>");
-								$("div."+edgeId).append("<div id='tooltip_" + edgeId + "' class='mydxtooltip tooltip_"+edgeId+"'></div>");
-							}
-							else {
-								console.log("Moving Div to:",x,",",y);
-								$("div."+edgeId).animate({left:x, top:y},0);
-							}
-							
-							
-							
-							var graph_id = edge.graph_id;
-							var graph_height = 150;
-							var graph_width = 600;
-							var rra_id = 1;
-							var d = new Date();
-							var graph_end = Math.round(d.getTime() / 1000);
-							var graph_start = graph_end - 86400;
-							var url = '../../graph_json.php?' + 'local_graph_id=' + graph_id + '&graph_height=' + graph_height +
-									  '&graph_start=' + graph_start + '&graph_end=' + graph_end + '&rra_id=' + rra_id + '&graph_width=' + graph_width +'&disable_cache=true';
-							
-							 $.ajax({
-								dataType: "json",
-								url: url,
-								data: {
-									__csrf_magic: csrfMagicToken
-								},
-								success:  function(data) {
-										console.log("Data from AJAX is:",data);
-										
-										var template = 
-												"<img id='graph_"+data.local_graph_id+
-												"' src='data:image/"+data.type+";base64,"+data.image+
-												"' graph_start='"+data.graph_start+
-												"' graph_end='"+data.graph_end+
-												"' graph_left='"+data.graph_left+
-												"' graph_top='"+data.graph_top+
-												"' graph_width='"+data.graph_width+
-												"' graph_height='"+data.graph_height+
-												"' image_width='"+data.image_width+
-												"' image_height='"+data.image_height+
-												"' canvas_left='"+data.graph_left+
-												"' canvas_top='"+data.graph_top+
-												"' canvas_width='"+data.graph_width+
-												"' canvas_height='"+data.graph_height+
-												"' width='"+data.image_width+
-												"' height='"+data.image_height+
-												"' value_min='"+data.value_min+
-												"' value_max='"+data.value_max+"'>";
-										
-										var tooltip = $("div.tooltip_"+edgeId).dxTooltip({
-											target: "div."+edgeId,
-											position: "right",
-											closeOnOutsideClick: function(e) { console.log("Moo!"); tooltip.hide();},
-											contentTemplate: function(data) {
-												data.html(template);
-											}
-										}).dxTooltip("instance");
-										tooltips[edgeId] = tooltip;
-										tooltip.show();
-										//responsiveResizeGraphs();
-								}
-							 });
-							
+			method: "POST",
+			url: "ajax.php",
+			data: dataOptions,
+			dataType: "jsonp",
+			success: function(response) {
+				var responseArray = response.Response?.[0] || [];
+				var edges = responseArray.edges || [];
+				var nodes = responseArray.nodes || [];
+				// Preserve previously pinned positions so live updates don't re-scatter nodes
+				if (nodesData.length) {
+					var posMap = {};
+					nodesData.forEach(n => { posMap[n.id] = {x: n.x, y: n.y, fx: n.fx, fy: n.fy}; });
+					nodes.forEach(n => {
+						if (posMap[n.id]) {
+							n.x  = posMap[n.id].x;
+							n.y  = posMap[n.id].y;
+							n.fx = posMap[n.id].fx;
+							n.fy = posMap[n.id].fy;
 						}
 					});
-					
-					node.on("drag", function(event) { hideTooltips();});
-					svg.on("wheel", function(event) { hideTooltips();});
-					svg.on("click", function(event) { hideTooltips();});
-					
-					simulation
-						.nodes(nodes)
-						.on("tick", ticked);
-					simulation.force("link")
-						.links(edges);
-					function ticked() {
-						link
-							.attr("x1", d => d.source.x)
-							.attr("y1", d => d.source.y)
-							.attr("x2", d => d.target.x)
-							.attr("y2", d => d.target.y);
-						node
-							.attr("transform", d => `translate(${d.x},${d.y})`);
-					}
-					function zoomed(event) {
-						linkGroup.attr("transform", event.transform);
-						nodeGroup.attr("transform", event.transform);
-					}
-					function dragstarted(event, d) {
-						if (!event.active) simulation.alphaTarget(0.3).restart();
-						d.fx = d.x;
-						d.fy = d.y;
-					}
-					function dragged(event, d) {
-						d.fx = event.x;
-						d.fy = event.y;
-					}
-					function dragended(event, d) {
-						if (!event.active) simulation.alphaTarget(0);
-						d.fx = null;
-						d.fy = null;
-					}
-					// Set network for compatibility
-					network = {
-						simulation: simulation,
-						svg: svg,
-						nodes: nodes,
-						edges: edges,
-						width: width,
-						height: height,
-						storePositions: function() {
-							// Do nothing, positions are in nodes
-						},
-						getPositions: function() {
-							var positions = {};
-							nodes.forEach(n => positions[n.id] = {x: n.x, y: n.y});
-							return positions;
-						},
-						getSeed: function() {
-							return seed;
-						},
-						setData: function(data) {
-							// For refresh
-							this.nodes = data.nodes;
-							this.edges = data.edges;
-							// Set source and target
-							this.edges.forEach(function(e) {
-								e.source = e.from;
-								e.target = e.to;
-							});
-							// Update simulation
-							simulation.nodes(this.nodes);
-							simulation.force("link").links(this.edges);
-							// Update svg
-							link = linkGroup.selectAll("line").data(this.edges);
-							link.exit().remove();
-							link = link.enter().append("line").merge(link)
-								.attr("stroke", d => d.color ? d.color.color : "#999")
-								.attr("stroke-width", d => Math.sqrt(d.value) || 1);
-							node = nodeGroup.selectAll("g").data(this.nodes);
-							node.exit().remove();
-							node = node.enter().append("g").merge(node)
-								.call(d3.drag()
-									.on("start", dragstarted)
-									.on("drag", dragged)
-									.on("end", dragended));
-							node.select("circle")
-								.attr("fill", d => d.color || "#33cccc");
-							node.select("text")
-								.text(d => d.label);
-							simulation.alpha(1).restart();
-						},
-						fit: function() {
-							simulation.restart();
-						}
-					};
-					console.log("Created the new d3 network");
+				}				mapOptions.ajaxEdges = edges.slice();
+				mapOptions.ajaxNodes = nodes.slice();
 
-					// Removed vis event handlers, using d3 handlers
-					
-					
-				}
-			});
-	}
-	else if (network) {				// Just refresh the existing map
-		
-		var nodes = mapOptions.ajaxNodes.slice();
-		var edges = mapOptions.ajaxEdges.slice();
-		// Filter invalid edges and nodes
-		nodes = nodes.filter(function(n) { return n.id != null; });
-		var nodeIds = {};
-		nodes.forEach(function(n) { nodeIds[n.id] = true; });
-		edges = edges.filter(function(e) { return e.from != null && e.to != null && nodeIds[e.from] && nodeIds[e.to]; });
-		edges.forEach(function(e) {
-			e.source = e.from;
-			e.target = e.to;
-		});
-		var keeping = [];
-		console.log("Refreshing only. mapOptions:",mapOptions,",nodes:",nodes,",edges:",edges);
-		if (mapOptions.hostFilter || mapOptions.lastSeen) {
-			console.log("Filtering without ajax refresh, nodes:",nodes,",edges:",edges,"mapOptions:",mapOptions);
-			var keepEdges = filterEdges(nodes,edges);
-			console.log("After filterEdges():",nodes,",edges:",edges,"mapOptions:",mapOptions);
-			keeping = keepEdges.keeping;
-			edges = keepEdges.edges;
-				
-			for (var node in nodes) {
-				if (nodes.hasOwnProperty(node)) {
-					var label = nodes[node].label;
-					var id = nodes[node].id
-					if (!(id in keeping)) { 
-						console.log("Delete Node:",node,nodes[node]);
-						delete nodes[node];
-					}
-					else {
-						console.log("Keep Node:",node,nodes[node]);
-					}
+				physics = responseArray.physics !== false;
+
+				// Process edge colors and types
+				processEdgeData(edges);
+
+				// Filter data
+				var filtered = filterEdges(nodes, edges);
+				nodes = filtered.nodes;
+				edges = filtered.edges;
+
+				// Separate edges by type
+				var physicalEdges = edges.filter(e => e.type === 'physical');
+				var logicalEdges = edges.filter(e => e.type === 'logical');
+
+				// Keep globals in sync so storeCoords() can read live positions
+				nodesData = nodes;
+				edgesData = edges;
+
+				// Create the visualization
+				createVisualization(container, nodes, physicalEdges, logicalEdges, physics);
+
+				// Start live updates if enabled
+				if (mapOptions.refreshInterval > 0) {
+					startLiveUpdates();
 				}
 			}
-			
-		}
-		// VisJS breaks if the keys aren't sequential, so after deleting the nodes we're filtering, we need to reindex the objects again
-		edges = reindexObject(edges);
-		nodes = reindexObject(nodes);
-		
-		console.log("Nodes:",nodes,"Edges",edges,"Keeping",keeping,"mapOptions:",mapOptions);
-		nodesData = nodes;
-		edgesData = edges;
-		
-		var data = {
-		  nodes: nodesData,
-		  edges: edgesData
-		};
-		network.setData(data);
-		network.fit();
-		
+		});
+	} else {
+		// Use cached data for filtering
+		var nodes = mapOptions.ajaxNodes.slice();
+		var edges = mapOptions.ajaxEdges.slice();
+
+		var filtered = filterEdges(nodes, edges);
+		nodes = filtered.nodes;
+		edges = filtered.edges;
+
+		var physicalEdges = edges.filter(e => e.type === 'physical');
+		var logicalEdges = edges.filter(e => e.type === 'logical');
+
+		nodesData = reindexArray(nodes);
+		edgesData = reindexArray(edges);
+
 	}
 }
 
+// Process edge data and add types/colors
+function processEdgeData(edges) {
+	// Color gradient for utilization
+	var colorArray = generateColor("#ff3300", "#66ff66", 10);
+
+	edges.forEach((edge, i) => {
+		// Convert vis.js format to D3 format
+		edge.source = edge.from;
+		edge.target = edge.to;
+
+		// Determine edge type based on protocol
+		if (edge.protocol === 'cdp' || edge.protocol === 'lldp') {
+			edge.type = 'physical';
+		} else if (['bgp', 'ospf', 'isis', 'eigrp'].includes(edge.protocol)) {
+			edge.type = 'logical';
+		} else {
+			edge.type = 'physical'; // default
+		}
+
+		// Process traffic data for colors
+		var pollerData = edge.poller;
+		if (pollerData?.traffic_in) {
+			var deltaMax = Math.max(pollerData.traffic_in.delta, pollerData.traffic_out.delta);
+			deltaMax = parseInt(deltaMax * 8 / 1000 / 1000); // Convert to Mbps
+			var intSpeed = edge.value || 100; // Default 100Mbps if no speed
+			var percUtilised = deltaMax / intSpeed * 100;
+			var colorIndex = Math.min(Math.floor(percUtilised / 10), colorArray.length - 1);
+
+			var color = "#" + colorArray[colorIndex];
+			edge.color = {
+				color: color,
+				highlight: color,
+				hover: color,
+				opacity: 1.0
+			};
+
+			// Add traffic info to title
+			var delta_in = Number(pollerData.traffic_in.delta * 8 / 1000 / 1000).toFixed(2);
+			var delta_out = Number(pollerData.traffic_out.delta * 8 / 1000 / 1000).toFixed(2);
+			edge.title = (edge.title || "") + `<br>Inbound: ${delta_in} Mbps, Outbound: ${delta_out} Mbps`;
+		}
+	});
+}
+
+// Create the D3 visualization
+function createVisualization(container, nodes, physicalEdges, logicalEdges, physics) {
+	d3.select("#map_container").selectAll("*").remove();
+
+	// Use container width; fall back to window dimensions if container has no computed size
+	var width  = container.clientWidth  || window.innerWidth  || 1200;
+	var height = container.clientHeight || window.innerHeight || 700;
+
+	// If still zero (percentage-height parent not resolved), use window
+	if (height < 100) height = Math.max(window.innerHeight - 150, 600);
+	if (width  < 100) width  = Math.max(window.innerWidth  - 40,  800);
+
+	// Resize the container element itself so it has real pixel dimensions
+	container.style.width  = width  + "px";
+	container.style.height = height + "px";
+
+	// Combine all edges for the simulation
+	var allEdges = [...physicalEdges, ...logicalEdges];
+
+	// Ensure all nodes have IDs
+	nodes.forEach((node, i) => {
+		if (!node.id && node.id !== 0) {
+			node.id = i;
+		}
+	});
+
+	// Create SVG with defs
+	var svg = d3.select(container).append("svg")
+		.attr("width", width)
+		.attr("height", height);
+
+	var defs = svg.append("defs");
+	defs.html(routerSymbol);
+
+	// Add zoom behavior
+	zoom = d3.zoom()
+		.scaleExtent([0.1, 4])
+		.on("zoom", zoomed);
+
+	svg.call(zoom);
+
+	// Initialise all nodes close to centre so disconnected ones don't scatter
+	nodes.forEach(node => {
+		if (typeof node.x !== 'number' || isNaN(node.x)) {
+			node.x = width  / 2 + (Math.random() - 0.5) * 60;
+			node.y = height / 2 + (Math.random() - 0.5) * 60;
+		}
+	});
+
+	// Create groups for different layers
+	var physicalLinkGroup = svg.append("g").attr("class", "links-physical");
+	var logicalLinkGroup  = svg.append("g").attr("class", "links-logical");
+	var nodeGroup         = svg.append("g").attr("class", "nodes");
+
+	// Create force simulation
+	try {
+		simulation = d3.forceSimulation(nodes)
+			.force("link",    d3.forceLink(allEdges).id(d => d.id).distance(180))
+			.force("charge",  d3.forceManyBody().strength(-600))
+			.force("center",  d3.forceCenter(width / 2, height / 2).strength(0.15))
+			.force("collide", d3.forceCollide(nodeSize))
+			.alphaDecay(0.05)
+			.velocityDecay(0.6);
+
+		if (!physics) simulation.stop();
+	} catch (error) {
+		console.error("Error creating force simulation:", error);
+		return;
+	}
+
+	// Create physical links (solid lines)
+	var physicalLink = physicalLinkGroup
+		.selectAll("line")
+		.data(physicalEdges)
+		.enter().append("line")
+		.attr("class", "physical-link")
+		.attr("stroke", d => d.color?.color || "#555")
+		.attr("stroke-width", 3)
+		.attr("stroke-linecap", "round");
+
+	// Create logical links (lightning bolts)
+	var logicalLink = logicalLinkGroup
+		.selectAll("path")
+		.data(logicalEdges)
+		.enter().append("path")
+		.attr("class", "logical-link")
+		.attr("stroke", d => d.color?.color || "#e65100")
+		.attr("stroke-width", 3)
+		.attr("fill", "none")
+		.attr("stroke-dasharray", "8,4");
+
+	// Create nodes with router symbols
+	var node = nodeGroup
+		.selectAll("g")
+		.data(nodes)
+		.enter().append("g")
+		.attr("class", "node")
+		.call(d3.drag()
+			.on("start", dragstarted)
+			.on("drag", dragged)
+			.on("end", dragended));
+
+	// Add router symbol to each node — wrap in a <g> so we can scale via transform
+	var iconScale = nodeSize / 24;
+	node.append("g")
+		.attr("class", "node-icon")
+		.attr("transform", `scale(${iconScale})`)
+		.append("use")
+			.attr("href", "#router")
+			.attr("width",  24)
+			.attr("height", 24)
+			.attr("x", -12)
+			.attr("y", -12);
+
+	// Add labels below the icon
+	node.append("text")
+		.attr("class", "node-label")
+		.attr("text-anchor", "middle")
+		.attr("dy", nodeSize / 2 + 14)
+		.style("font-size", labelSize + "px")
+		.style("font-family", "Arial, sans-serif")
+		.style("font-weight", "600")
+		.style("fill", "#1a1a2e")
+		.text(d => d.label);
+
+	// Add tooltips and interactions
+	physicalLink.on("dblclick", handleEdgeClick);
+	logicalLink.on("dblclick", handleEdgeClick);
+
+	node.on("drag", () => hideTooltips());
+	svg.on("wheel", () => hideTooltips());
+	svg.on("click", () => hideTooltips());
+
+	// Simulation tick function
+	simulation.on("tick", function() {
+		// Update physical links
+		physicalLink
+			.attr("x1", d => d.source.x)
+			.attr("y1", d => d.source.y)
+			.attr("x2", d => d.target.x)
+			.attr("y2", d => d.target.y);
+
+		// Update logical links with lightning bolt paths
+		logicalLink.attr("d", d => createLightningBolt(d.source.x, d.source.y, d.target.x, d.target.y));
+
+		// Update node positions
+		node.attr("transform", d => `translate(${d.x},${d.y})`);
+	});
+
+	// Store network object for compatibility
+	network = {
+		simulation: simulation,
+		svg: svg,
+		nodes: nodes,
+		edges: [...physicalEdges, ...logicalEdges],
+		width: width,
+		height: height,
+		getPositions: function() {
+			var positions = {};
+			nodes.forEach(n => positions[n.id] = {x: n.x, y: n.y});
+			return positions;
+		},
+		setData: function(data) {
+			// Update data and restart simulation
+			this.nodes = data.nodes;
+			this.edges = data.edges;
+			simulation.nodes(this.nodes);
+			simulation.force("link").links(this.edges);
+			simulation.alpha(1).restart();
+		},
+		fit: function() {
+			simulation.restart();
+		}
+	};
+
+	// Auto-fit: centres all nodes in the viewport
+	var autoFit = (animated) => {
+		var padding = nodeSize + 60;
+		var xs = nodes.map(n => n.x);
+		var ys = nodes.map(n => n.y);
+		var minX  = Math.min(...xs) - padding;
+		var maxX  = Math.max(...xs) + padding;
+		var minY  = Math.min(...ys) - padding;
+		var maxY  = Math.max(...ys) + padding;
+		var bboxW = maxX - minX;
+		var bboxH = maxY - minY;
+		if (bboxW < 1 || bboxH < 1) return;
+		var scale = Math.min(width / bboxW, height / bboxH, 1.5);
+		var tx    = (width  - scale * (minX + maxX)) / 2;
+		var ty    = (height - scale * (minY + maxY)) / 2;
+		var t     = d3.zoomIdentity.translate(tx, ty).scale(scale);
+		if (animated) {
+			svg.transition().duration(600).call(zoom.transform, t);
+		} else {
+			svg.call(zoom.transform, t);
+		}
+	};
+
+	// Pin every node once the simulation has settled so nothing drifts afterwards
+	var pinAllNodes = () => {
+		nodes.forEach(n => { n.fx = n.x; n.fy = n.y; });
+	};
+
+	simulation.on("end", () => {
+		autoFit(true);
+		pinAllNodes();
+	});
+	// Fallback: pin + fit after 3 s in case the simulation ends early or not at all
+	setTimeout(() => { autoFit(true); pinAllNodes(); }, 3000);
+
+	// Inject the icon-size slider if not already present
+	if (!document.getElementById('node_size_slider')) {
+		var sliderHtml =
+			"<div id='node_size_ctrl' style='" +
+			"position:absolute;top:8px;right:12px;background:rgba(255,255,255,0.88);" +
+			"border:1px solid #ccc;border-radius:6px;padding:6px 12px;" +
+		"font:12px Arial,sans-serif;z-index:10;display:flex;align-items:center;gap:12px;'>" +
+		"<label for='node_size_slider'>&#128269; Icon</label>" +
+		"<input id='node_size_slider' type='range' min='24' max='96' step='4' value='" + nodeSize + "'" +
+		" style='width:90px;cursor:pointer;'>" +
+		"<label for='label_size_slider'>&#65313; Text</label>" +
+		"<input id='label_size_slider' type='range' min='8' max='32' step='1' value='" + labelSize + "'" +
+		" style='width:90px;cursor:pointer;'>" +
+			"</div>";
+		$("#map_container").css("position", "relative").prepend(sliderHtml);
+
+		document.getElementById('node_size_slider').addEventListener('input', function() {
+			nodeSize = parseInt(this.value);
+			var s = nodeSize / 24;
+			d3.selectAll(".node-icon")
+				.attr("transform", `scale(${s})`);
+			d3.selectAll(".node-label")
+				.attr("dy", nodeSize / 2 + 14);
+			// Update collide force radius
+			simulation.force("collide", d3.forceCollide(nodeSize));
+			simulation.alpha(0.1).restart();
+		});
+
+		document.getElementById('label_size_slider').addEventListener('input', function() {
+			labelSize = parseInt(this.value);
+			d3.selectAll(".node-label")
+				.style("font-size", labelSize + "px");
+		});
+	}
+}
+
+// Handle edge double-click for tooltips
+function handleEdgeClick(event, d) {
+	var edgeId = d.id;
+	var x = event.clientX;
+	var y = event.clientY;
+
+	if (d.graph_id) {
+		if (!$("div." + edgeId).length) {
+			$("#cactiContent").append("<div class='" + edgeId + "' style='left:" + x + "px; top:" + y + "px; position:absolute'></div>");
+			$("div." + edgeId).append("<div id='tooltip_" + edgeId + "' class='mydxtooltip tooltip_" + edgeId + "'></div>");
+		} else {
+			$("div." + edgeId).animate({left: x, top: y}, 0);
+		}
+
+		var graph_id = d.graph_id;
+		var graph_height = 150;
+		var graph_width = 600;
+		var rra_id = 1;
+		var now = new Date();
+		var graph_end = Math.round(now.getTime() / 1000);
+		var graph_start = graph_end - 86400;
+
+		var url = '../../graph_json.php?' +
+			'local_graph_id=' + graph_id +
+			'&graph_height=' + graph_height +
+			'&graph_start=' + graph_start +
+			'&graph_end=' + graph_end +
+			'&rra_id=' + rra_id +
+			'&graph_width=' + graph_width +
+			'&disable_cache=true';
+
+		$.ajax({
+			dataType: "json",
+			url: url,
+			data: { __csrf_magic: csrfMagicToken },
+			success: function(data) {
+				var template = "<img id='graph_" + data.local_graph_id +
+					"' src='data:image/" + data.type + ";base64," + data.image +
+					"' graph_start='" + data.graph_start +
+					"' graph_end='" + data.graph_end +
+					"' graph_left='" + data.graph_left +
+					"' graph_top='" + data.graph_top +
+					"' graph_width='" + data.graph_width +
+					"' graph_height='" + data.graph_height +
+					"' image_width='" + data.image_width +
+					"' image_height='" + data.image_height +
+					"' canvas_left='" + data.graph_left +
+					"' canvas_top='" + data.graph_top +
+					"' canvas_width='" + data.graph_width +
+					"' canvas_height='" + data.graph_height +
+					"' width='" + data.image_width +
+					"' height='" + data.image_height +
+					"' value_min='" + data.value_min +
+					"' value_max='" + data.value_max + "'>";
+
+				var tooltip = $("div.tooltip_" + edgeId).dxTooltip({
+					target: "div." + edgeId,
+					position: "right",
+					closeOnOutsideClick: () => tooltip.hide(),
+					contentTemplate: (contentData) => contentData.html(template)
+				}).dxTooltip("instance");
+
+				tooltips[edgeId] = tooltip;
+				tooltip.show();
+			}
+		});
+	}
+}
+
+// Drag functions — nodes stay pinned where dropped (sticky)
+function dragstarted(event, d) {
+	if (!event.active) simulation.alphaTarget(0.3).restart();
+	d.fx = d.x;
+	d.fy = d.y;
+	d3.select(this).select(".node-icon").style("cursor", "grabbing");
+}
+
+function dragged(event, d) {
+	d.fx = event.x;
+	d.fy = event.y;
+}
+
+function dragended(event, d) {
+	if (!event.active) simulation.alphaTarget(0);
+	// Keep fx/fy set so the node stays exactly where the user left it.
+	// Do NOT null them out — that would release the pin and let the sim bounce the node.
+	d3.select(this).select(".node-icon").style("cursor", "grab");
+}
+
+// Zoom function
+function zoomed(event) {
+	d3.selectAll(".links-physical, .links-logical, .nodes").attr("transform", event.transform);
+}
+
+// Live updates
+function startLiveUpdates() {
+	if (refreshTimer) clearInterval(refreshTimer);
+	refreshTimer = setInterval(() => {
+		mapOptions.ajax = true;
+		drawMap();
+	}, mapOptions.refreshInterval);
+}
+
+function stopLiveUpdates() {
+	if (refreshTimer) {
+		clearInterval(refreshTimer);
+		refreshTimer = null;
+	}
+}
+
+// Hide all tooltips
 function hideTooltips() {
-	for(var index in tooltips) { 
-		if (tooltips.hasOwnProperty(index)) {
-			var tooltip = tooltips[index];
-			console.log("Disposing of dxTooltip",index,":",tooltip);
-			tooltip.dispose();
-			delete tooltips[index]; // Remove this object
+	Object.keys(tooltips).forEach(key => {
+		if (tooltips[key]) {
+			tooltips[key].dispose();
+			delete tooltips[key];
 		}
+	});
+}
+
+// Color generation functions
+function hex(c) {
+	var s = "0123456789abcdef";
+	var i = parseInt(c);
+	if (i == 0 || isNaN(c)) return "00";
+	i = Math.round(Math.min(Math.max(0, i), 255));
+	return s.charAt((i - i % 16) / 16) + s.charAt(i % 16);
+}
+
+function convertToHex(rgb) {
+	return hex(rgb[0]) + hex(rgb[1]) + hex(rgb[2]);
+}
+
+function convertToRGB(hex) {
+	var color = [];
+	color[0] = parseInt((hex).substring(0, 2), 16);
+	color[1] = parseInt((hex).substring(2, 4), 16);
+	color[2] = parseInt((hex).substring(4, 6), 16);
+	return color;
+}
+
+function generateColor(colorStart, colorEnd, colorCount) {
+	var start = convertToRGB(colorStart);
+	var end = convertToRGB(colorEnd);
+	var len = colorCount;
+	var alpha = 0.0;
+	var colors = [];
+
+	for (var i = 0; i < len; i++) {
+		var c = [];
+		alpha += (1.0 / len);
+		c[0] = start[0] * alpha + (1 - alpha) * end[0];
+		c[1] = start[1] * alpha + (1 - alpha) * end[1];
+		c[2] = start[2] * alpha + (1 - alpha) * end[2];
+		colors.push(convertToHex(c));
 	}
+	return colors;
 }
 
-/* ---------------------*/
-/* Coordinate functions */
-/* ---------------------*/
-
-
-
-function rotatePoint(cx, cy, x, y, angle) {
-    var radians = (Math.PI / 180) * angle,
-        cos = Math.cos(radians),
-        sin = Math.sin(radians),
-        nx = (cos * (x - cx)) + (sin * (y - cy)) + cx,
-        ny = (cos * (y - cy)) - (sin * (x - cx)) + cy;
-    return ({x : nx , y : ny});
-}
-
-// Credit: The weighted centre average code is from the following Stackoverflow answer
-// Author: naomik (https://stackoverflow.com/users/633183/naomik)
-// Answer: https://stackoverflow.com/a/42521032
-
-// math
-const pythag = (a,b) => Math.sqrt(a * a + b * b)
-const rad2deg = rad => rad * 180 / Math.PI
-const deg2rad = deg => deg * Math.PI / 180
-const atan2 = (y,x) => rad2deg(Math.atan2(y,x))
-const cos = x => Math.cos(deg2rad(x))
-const sin = x => Math.sin(deg2rad(x))
-
-// Point
-const Point = (x,y) => ({
-  x,
-  y,
-  add: ({x: x2, y: y2}) =>
-    Point(x + x2, y + y2),
-  sub: ({x: x2, y: y2}) =>
-    Point(x - x2, y - y2),
-  bind: f =>
-    f(x,y),
-  inspect: () =>
-    `Point(${x}, ${y})`
-})
-
-Point.origin = Point(0,0)
-Point.fromVector = ({a,m}) => Point(m * cos(a), m * sin(a))
-
-// Vector
-const Vector = (a,m) => ({
-  a,
-  m,
-  scale: x =>
-    Vector(a, m*x),
-  add: v =>
-    Vector.fromPoint(Point.fromVector(Vector(a,m)).add(Point.fromVector(v))),
-  inspect: () =>
-    `Vector(${a}, ${m})`
-})
-
-Vector.zero = Vector(0,0)
-Vector.unitFromPoint = ({x,y}) => Vector(atan2(y,x), 1)
-Vector.fromPoint = ({x,y}) => Vector(atan2(y,x), pythag(x,y))
-
-
-// calc unweighted midpoint
-const calcMidpoint = points => {
-  let count = points.length;
-  let midpoint = points.reduce((acc, [point, _]) => acc.add(point), Point.origin)
-  return midpoint.bind((x,y) => Point(x/count, y/count))
-}
-
-// calc weighted point
-const calcWeightedMidpoint = points => {
-  let midpoint = calcMidpoint(points)
-  let totalWeight = points.reduce((acc, [_, weight]) => acc + weight, 0)
-  let vectorSum = points.reduce((acc, [point, weight]) =>
-    acc.add(Vector.fromPoint(point.sub(midpoint)).scale(weight/totalWeight)), Vector.zero)
-  return Point.fromVector(vectorSum).add(midpoint)
-}
-
-
-
+// Initialize on document ready
 $(document).ready(function() {
-	
-	
-	$("#positions").click(function() { storeCoords();});
+	$("#positions").click(storeCoords);
 	drawMap();
-			
 });

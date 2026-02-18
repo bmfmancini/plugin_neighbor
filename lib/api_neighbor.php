@@ -1536,7 +1536,7 @@ function get_stored_map_positions($user_id, $rule_id) {
 
 	foreach ($stored_map as $row) {
 		$stored_data['nodes'][] = [
-			'id'      => $row['item_id'],
+			'id'      => (int) $row['item_id'],
 			'label'   => $row['item_label'],
 			'x'       => $row['item_x'],
 			'y'       => $row['item_y'],
