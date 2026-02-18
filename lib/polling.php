@@ -301,6 +301,7 @@ function discoverCdpNeighbors($host) {
 
 		if (!$myIntRecord) {
 			debug("Error: Couldn't own find Cacti interface record for host=$myHostId, snmp_index=$snmpId");
+
 			continue;
 		}
 
