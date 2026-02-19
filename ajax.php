@@ -133,12 +133,12 @@ function ajax_map_reset_options($format = 'jsonp',$ajax = true) {
 	}
 	// ================= input validation =================
 
-	$user_id = isset_request_var('user_id') ? get_request_var('user_id') : false;
+	$user_id = isset($_SESSION['sess_user_id']) ? (int) $_SESSION['sess_user_id'] : 0;
 	$rule_id = isset_request_var('rule_id') ? get_request_var('rule_id') : false;
 	// error_log(print_r($_REQUEST,true));
 	$message = '';
 
-	if ($user_id && $rule_id) {
+	if ($user_id > 0 && $rule_id) {
 		db_execute_prepared('DELETE from plugin_neighbor_user_map where user_id=? AND rule_id=?', [$user_id, $rule_id]);
 		$message = sprintf('%d nodes reset.',db_affected_rows());
 	}
@@ -166,13 +166,13 @@ function ajax_map_save_options($format = 'jsonp',$ajax = true) {
 	}
 	// ================= input validation =================
 
-	$user_id = isset_request_var('user_id') ? get_request_var('user_id') : false;
+	$user_id = isset($_SESSION['sess_user_id']) ? (int) $_SESSION['sess_user_id'] : 0;
 	$rule_id = isset_request_var('rule_id') ? get_request_var('rule_id') : false;
 
 	$message = '';
 	// error_log("ajax_map_save_options() is saving for user: $user_id, rule: $rule_id");
 
-	if ($user_id && $rule_id) {
+	if ($user_id > 0 && $rule_id) {
 		// error_log("Request".print_r($_REQUEST,true));
 
 		$mapItems 	 = isset_request_var('items') ? get_request_var('items') : [];
