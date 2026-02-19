@@ -246,6 +246,34 @@ function upsert_xdp_record($hashArray, $neighUptime, $neighHash, $recordHash) {
 }
 
 /**
+ * Prepare fields array into ordered hashArray and upsert record
+ * Returns boolean result of DB upsert
+ */
+function prepare_and_upsert_xdp($fields) {
+	$required = ['host_id','type','host_ip','hostname','snmp_id','interface_name','interface_alias','interface_speed','interface_status','interface_ip','interface_hwaddr','neighbor_host_id','neighbor_hostname','neighbor_snmp_id','neighbor_interface_name','neighbor_interface_alias','neighbor_interface_speed','neighbor_interface_status','neighbor_interface_ip','neighbor_interface_hwaddr','neighbor_platform','neighbor_software','neighbor_duplex','neighbor_last_changed_seconds'];
+
+	foreach ($required as $r) {
+		if (!array_key_exists($r, $fields)) {
+			return false;
+		}
+	}
+
+	$hashArray = [
+		$fields['host_id'], $fields['type'], $fields['host_ip'], $fields['hostname'], $fields['snmp_id'],
+		$fields['interface_name'], $fields['interface_alias'], $fields['interface_speed'], $fields['interface_status'], $fields['interface_ip'], $fields['interface_hwaddr'],
+		$fields['neighbor_host_id'], $fields['neighbor_hostname'], $fields['neighbor_snmp_id'],
+		$fields['neighbor_interface_name'], $fields['neighbor_interface_alias'], $fields['neighbor_interface_speed'],
+		$fields['neighbor_interface_status'], $fields['neighbor_interface_ip'], $fields['neighbor_interface_hwaddr'],
+		$fields['neighbor_platform'], $fields['neighbor_software'], $fields['neighbor_duplex']
+	];
+
+	$recordHash = compute_record_hash($hashArray);
+	$neighHash  = compute_neigh_hash($fields['hostname'], $fields['neighbor_hostname'], $fields['interface_name'], $fields['neighbor_interface_name']);
+
+	return upsert_xdp_record($hashArray, $fields['neighbor_last_changed_seconds'], $neighHash, $recordHash);
+}
+
+/**
  * Perform SNMP walks for given OIDs and flatten results into a keyed array
  *
  * Walks multiple OID trees on a host and returns a single associative array
@@ -406,20 +434,34 @@ function discoverCdpNeighbors($host) {
 		sort($intArray);
 		$neighArray = array_merge($hostArray,$intArray);		// Sort the values to  make them even for each neighbor pair
 
-		$recordHash = md5(serialize($hashArray));												// This should be unique to each CDP entry
-		$neighHash  = md5(serialize($neighArray));												// This should allow us to pair neighbors together
+		$fields = [
+			'host_id' => $host['id'],
+			'type' => 'cdp',
+			'host_ip' => $myIp,
+			'hostname' => $myHostname,
+			'snmp_id' => $snmpId,
+			'interface_name' => $myIntName,
+			'interface_alias' => $myIntAlias,
+			'interface_speed' => $myIntSpeed,
+			'interface_status' => $myIntStatus,
+			'interface_ip' => $myIntIp,
+			'interface_hwaddr' => $myIntHwAddr,
+			'neighbor_host_id' => $neighHostId,
+			'neighbor_hostname' => $neighHostname,
+			'neighbor_snmp_id' => $neighSnmpId,
+			'neighbor_interface_name' => $neighIntName,
+			'neighbor_interface_alias' => $neighIntAlias,
+			'neighbor_interface_speed' => $neighIntSpeed,
+			'neighbor_interface_status' => $neighIntStatus,
+			'neighbor_interface_ip' => $neighIntIp,
+			'neighbor_interface_hwaddr' => $neighIntHwAddr,
+			'neighbor_platform' => $neighPlatform,
+			'neighbor_software' => $neighSoftware,
+			'neighbor_duplex' => $neighDuplex,
+			'neighbor_last_changed_seconds' => $neighUptime,
+		];
 
-		if (db_execute_prepared('REPLACE  INTO `plugin_neighbor_xdp`
-				       (`host_id`, `type`,`host_ip`, `hostname`, `snmp_id`,
-					`interface_name`, `interface_alias`, `interface_speed`, `interface_status`, `interface_ip`, `interface_hwaddr`,
-					`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`,
-					`neighbor_interface_name`, `neighbor_interface_alias`, `neighbor_interface_speed`,
-					`neighbor_interface_status`, `neighbor_interface_ip`, `neighbor_interface_hwaddr`,
-					`neighbor_platform`, `neighbor_software`, `neighbor_duplex`,
-					`neighbor_last_changed`, `last_seen`,`neighbor_hash`, `record_hash`)
-				    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,DATE_SUB(NOW(),INTERVAL ? SECOND),NOW(),?,?)',
-			array_merge($hashArray,[$neighUptime, $neighHash, $recordHash])
-		)) {
+		if (prepare_and_upsert_xdp($fields)) {
 			$neighCount++;
 		}
 	}
@@ -536,20 +578,34 @@ function discoverLldpNeighbors($host) {
 		sort($intArray);
 		$neighArray = array_merge($hostArray,$intArray);		// Sort the values to  make them even for each neighbor pair
 
-		$recordHash = md5(serialize($hashArray));												// This should be unique to each CDP entry
-		$neighHash  = md5(serialize($neighArray));												// This should allow us to pair neighbors together
+		$fields = [
+			'host_id' => $host['id'],
+			'type' => 'lldp',
+			'host_ip' => $myIp,
+			'hostname' => $myHostname,
+			'snmp_id' => $snmpId,
+			'interface_name' => $myIntName,
+			'interface_alias' => $myIntAlias,
+			'interface_speed' => $myIntSpeed,
+			'interface_status' => $myIntStatus,
+			'interface_ip' => $myIntIp,
+			'interface_hwaddr' => $myIntHwAddr,
+			'neighbor_host_id' => $neighHostId,
+			'neighbor_hostname' => $neighHostname,
+			'neighbor_snmp_id' => $neighSnmpId,
+			'neighbor_interface_name' => $neighIntName,
+			'neighbor_interface_alias' => $neighIntAlias,
+			'neighbor_interface_speed' => $neighIntSpeed,
+			'neighbor_interface_status' => $neighIntStatus,
+			'neighbor_interface_ip' => $neighIntIp,
+			'neighbor_interface_hwaddr' => $neighIntHwAddr,
+			'neighbor_platform' => $neighPlatform,
+			'neighbor_software' => $neighSoftware,
+			'neighbor_duplex' => $neighDuplex,
+			'neighbor_last_changed_seconds' => $neighUptime,
+		];
 
-		if (db_execute_prepared('REPLACE  INTO `plugin_neighbor_xdp`
-			(`host_id`, `type`,`host_ip`, `hostname`, `snmp_id`,
-			`interface_name`, `interface_alias`, `interface_speed`, `interface_status`, `interface_ip`, `interface_hwaddr`,
-					`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`,
-					`neighbor_interface_name`, `neighbor_interface_alias`, `neighbor_interface_speed`,
-					`neighbor_interface_status`, `neighbor_interface_ip`, `neighbor_interface_hwaddr`,
-					`neighbor_platform`, `neighbor_software`, `neighbor_duplex`,
-					`neighbor_last_changed`, `neighbor_hash`, `record_hash`)
-				    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,DATE_SUB(NOW(),INTERVAL ? SECOND),?,?)',
-			array_merge($hashArray,[$neighUptime, $neighHash, $recordHash])
-		)) {
+		if (prepare_and_upsert_xdp($fields)) {
 			$neighCount++;
 		}
 	}
