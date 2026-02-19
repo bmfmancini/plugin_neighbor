@@ -95,9 +95,9 @@ function neighbor_poller_output(&$rrd_update_array) {
 function process_poller_deltas() {
 	cacti_log('process_poller_deltas() is running', true, 'NEIGHBOR POLLER');
 
-	db_execute_prepared('INSERT INTO plugin_neighbor_log
-		VALUES (?, NOW(), ?)',
-		['', 'process_poller_deltas() is starting.']);
+	db_execute_prepared('INSERT INTO plugin_neighbor_log (logtime, message)
+		VALUES (NOW(), ?)',
+		['process_poller_deltas() is starting.']);
 
 	$results = db_fetch_assoc('SELECT * FROM plugin_neighbor_poller_output');
 
@@ -117,9 +117,9 @@ function process_poller_deltas() {
 		$timestamps = array_keys($data);
 		rsort($timestamps);
 
-		db_execute_prepared('INSERT INFO plugin_neighbor_log
-			VALUES (?, NOW(), ?)',
-			['', 'process_poller_deltas() is running. Timestamps:' . print_r($timestamps,1)]);
+		db_execute_prepared('INSERT INTO plugin_neighbor_log (logtime, message)
+			VALUES (NOW(), ?)',
+			['process_poller_deltas() is running. Timestamps:' . print_r($timestamps,1)]);
 
 		if (sizeof($timestamps) >= 2) {
 			$now             = $timestamps[0];
@@ -132,18 +132,18 @@ function process_poller_deltas() {
 
 			cacti_log("process_poller_deltas(): now:$now, before:$before, Hash:" . print_r($data[$now],true), true, 'NEIGHBOR POLLER');
 
-			db_execute_prepared('INSERT INTO plugin_neighbor_log
-				VALUES (?, NOW(), ?)',
-				['', "Now:$now, Before:$before, Hash:" . print_r($data[$now],true)]);
+			db_execute_prepared('INSERT INTO plugin_neighbor_log (logtime, message)
+				VALUES (NOW(), ?)',
+				["Now:$now, Before:$before, Hash:" . print_r($data[$now],true)]);
 
 			foreach ($data[$now] as $key => $record) {
-				db_execute_prepared('INSERT INTO plugin_neighbor_log
-					VALUES (?, NOW(), ?)',
-					['', "RRD:$rrdFile, data now:" . print_r($data[$now][$key],true)]);
+				db_execute_prepared('INSERT INTO plugin_neighbor_log (logtime, message)
+					VALUES (NOW(), ?)',
+					["RRD:$rrdFile, data now:" . print_r($data[$now][$key],true)]);
 
-				db_execute_prepared('INSERT INTO plugin_neighbor_log
-					VALUES (?, NOW(), ?)',
-					['', "RRD:$rrdFile, data before:" . print_r($data[$now][$key],true)]);
+				db_execute_prepared('INSERT INTO plugin_neighbor_log (logtime, message)
+					VALUES (NOW(), ?)',
+					["RRD:$rrdFile, data before:" . print_r($data[$now][$key],true)]);
 
 				$delta = sprintf('%.2f',($data[$now][$key]['value'] - $data[$before][$key]['value']) / $timeDelta);
 
@@ -198,6 +198,54 @@ function get_neighbor_oid_table() {
 }
 
 /**
+ * Map CDP duplex numeric value to string
+ */
+function map_duplex_value($val) {
+	if ($val == 1) {
+		return 'unknown';
+	} elseif ($val == 2) {
+		return 'half';
+	} else {
+		return 'full';
+	}
+}
+
+/**
+ * Compute a record hash from an array of values
+ */
+function compute_record_hash($arr) {
+	return md5(serialize($arr));
+}
+
+/**
+ * Compute neighbor hash from host and interface name pairs
+ */
+function compute_neigh_hash($myHostname, $neighHostname, $myIntName, $neighIntName) {
+	$hostArray = [$myHostname, $neighHostname];
+	sort($hostArray);
+	$intArray = [$myIntName, $neighIntName];
+	sort($intArray);
+	return md5(serialize(array_merge($hostArray, $intArray)));
+}
+
+/**
+ * Upsert a plugin_neighbor_xdp record using a prepared REPLACE
+ * Expects $hashArray to be ordered to match the column list used below
+ */
+function upsert_xdp_record($hashArray, $neighUptime, $neighHash, $recordHash) {
+	return db_execute_prepared('REPLACE INTO `plugin_neighbor_xdp`
+				   (`host_id`, `type`,`host_ip`, `hostname`, `snmp_id`,
+					`interface_name`, `interface_alias`, `interface_speed`, `interface_status`, `interface_ip`, `interface_hwaddr`,
+					`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`,
+					`neighbor_interface_name`, `neighbor_interface_alias`, `neighbor_interface_speed`,
+					`neighbor_interface_status`, `neighbor_interface_ip`, `neighbor_interface_hwaddr`,
+					`neighbor_platform`, `neighbor_software`, `neighbor_duplex`,
+					`neighbor_last_changed`, `last_seen`,`neighbor_hash`, `record_hash`)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,DATE_SUB(NOW(),INTERVAL ? SECOND),NOW(),?,?)',
+			array_merge($hashArray, [$neighUptime, $neighHash, $recordHash]));
+}
+
+/**
  * Perform SNMP walks for given OIDs and flatten results into a keyed array
  *
  * Walks multiple OID trees on a host and returns a single associative array
@@ -220,7 +268,16 @@ function neighbor_snmp_walk_and_flatten($host, $walkOids) {
 			read_config_option('snmp_retries'), $host['max_oids']
 		);
 
+		// plugin_cacti_snmp_walk() may return FALSE or non-array on error.
+		if (!is_array($walked)) {
+			continue;
+		}
+
 		foreach ($walked as $rec) {
+			if (!is_array($rec)) {
+				continue;
+			}
+
 			$oidKey = isset($rec['oid']) ? $rec['oid'] : '';
 			$value  = isset($rec['value']) ? $rec['value'] : '';
 
@@ -300,7 +357,7 @@ function discoverCdpNeighbors($host) {
 			continue;
 		}
 
-		$myIp			       = isset($host['hostname']) ? $host['hostname'] : '';
+		$myIp			  = isset($host['hostname']) ? $host['hostname'] : '';
 		$myHostname		  = isset($host['description']) ? $host['description'] : '';
 		$myIntName 		  = isset($myIntRecord['ifDescr']) ? $myIntRecord['ifDescr'] : '';
 		$myIntAlias 	  = isset($myIntRecord['ifAlias']) ? $myIntRecord['ifAlias'] : '';
