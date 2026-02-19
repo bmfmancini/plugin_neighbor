@@ -50,6 +50,10 @@ switch (get_request_var('action')) {
 		ajax_map_list();
 
 		break;
+	case 'ajax_neighbor_hosts':
+		ajax_neighbor_hosts();
+
+		break;
 	case 'ajax_neighbors_xdp':
 		ajax_neighbors_fetch('xdp');
 
@@ -80,6 +84,35 @@ function ajax_map_list($format = 'jsonp',$ajax = true) {
 	$results = db_fetch_assoc('SELECT * FROM plugin_neighbor_rules order by name');
 	$json    = json_encode($results);
 	$jsonp   = sprintf('%s({"Response":[%s]})', $query_callback,json_encode($results,JSON_PRETTY_PRINT));
+
+	if ($ajax) {
+		header('Content-Type: application/json');
+		print $format == 'jsonp' ? $jsonp : $json;
+	} else {
+		return ($json);
+	}
+}
+
+/**
+ * Return list of hosts present in plugin_neighbor_host table
+ */
+function ajax_neighbor_hosts($format = 'jsonp',$ajax = true) {
+	$format = $format ? $format : (isset_request_var('format') ? get_request_var('format') : '');
+	// ================= input validation =================
+	$query_callback = 'Callback';
+
+	if (isset_request_var('callback')) {
+		$query_callback = get_filter_request_var('callback', FILTER_CALLBACK, ['options' => 'sanitize_search_string']);
+	}
+	// ================= input validation =================
+
+	$results = db_fetch_assoc_prepared('SELECT pnh.host_id as id, COALESCE(h.description, h.hostname) as name
+		FROM plugin_neighbor_host pnh
+		LEFT JOIN host h ON h.id = pnh.host_id
+		ORDER BY name', []);
+
+	$json  = json_encode($results);
+	$jsonp = sprintf('%s({"Response":[%s]})', $query_callback, json_encode($results, JSON_PRETTY_PRINT));
 
 	if ($ajax) {
 		header('Content-Type: application/json');
@@ -149,7 +182,7 @@ function ajax_map_save_options($format = 'jsonp',$ajax = true) {
 		$mapOptions = isset_request_var('options') ? get_request_var('options') : [];
 
 		$nodes     = json_decode($mapItems,true);
-		$projected = project_nodes($nodes, $canvas_x,$canvas_y, 0, false, true);		// We need to flip the Y axis around for some reason due to vis.js
+		$projected = project_nodes($nodes, $canvas_x,$canvas_y, 0, false, false);		// Y axis not flipped for d3.js
 
 		error_log('Nodes:' . print_r($nodes,true));
 		error_log('Projected:' . print_r($projected,true));
