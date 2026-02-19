@@ -154,8 +154,8 @@ function save_rule() {
 		$save['operator']  = form_input_validate((isset_request_var('operator') ? get_nfilter_request_var('operator') : ''), 'operator', '^[0-9]+$', true, 3);
 		$save['pattern']   = form_input_validate((isset_request_var('pattern') ? get_nfilter_request_var('pattern') : ''), 'pattern', '', true, 3);
 
-		if (!is_error_message()) {
-			$item_id = sql_save($save, 'neighbor_plugin__graph_rule_items');
+			if (!is_error_message()) {
+				$item_id = sql_save($save, 'plugin_neighbor_graph_rule_items');
 
 			if ($item_id) {
 				raise_message(1);
@@ -222,9 +222,9 @@ function neighbor_rules_form_actions() {
 		$selected_items = sanitize_unserialize_selected_items(get_nfilter_request_var('selected_items'));
 
 		if ($selected_items != false) {
-			if (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_GRAPH_DELETE) { // delete
-				db_execute('DELETE FROM plugin_neighbor_rules WHERE ' . array_to_sql_or($selected_items, 'id'));
-				db_execute('DELETE FROM plugin_neighbor_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
+				if (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_GRAPH_DELETE) { // delete
+					db_execute('DELETE FROM plugin_neighbor_rules WHERE ' . array_to_sql_or($selected_items, 'id'));
+					db_execute('DELETE FROM plugin_neighbor_graph_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
 				db_execute('DELETE FROM plugin_neighbor_match_rule_items WHERE ' . array_to_sql_or($selected_items, 'rule_id'));
 			} elseif (get_nfilter_request_var('drp_action') == AUTOMATION_ACTION_GRAPH_DUPLICATE) { // duplicate
 				for ($i = 0; ($i < count($selected_items)); $i++) {
@@ -348,8 +348,8 @@ function neighbor_rules_item_movedown() {
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
 		move_item_down('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
-	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
-		move_item_down('plugin_neighbor_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
+		} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
+			move_item_down('plugin_neighbor_graph_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
 }
 
@@ -362,8 +362,8 @@ function neighbor_rules_item_moveup() {
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
 		move_item_up('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
-	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
-		move_item_up('plugin_neighbor_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
+		} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
+			move_item_up('plugin_neighbor_graph_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
 }
 
@@ -457,9 +457,9 @@ function neighbor_rules_remove() {
 			AND rule_type = ?',
 			[get_request_var('id'), AUTOMATION_RULE_TYPE_GRAPH_MATCH]);
 
-		db_execute_prepared('DELETE FROM plugin_neighbor_rule_items
-			WHERE rule_id = ?',
-			[get_request_var('id')]);
+			db_execute_prepared('DELETE FROM plugin_neighbor_graph_rule_items
+				WHERE rule_id = ?',
+				[get_request_var('id')]);
 
 		db_execute_prepared('DELETE FROM plugin_neighbor_rules
 			WHERE id = ?',
