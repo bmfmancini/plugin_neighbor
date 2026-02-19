@@ -1413,17 +1413,17 @@ function autoDiscoverHosts() {
 			if ($existing) {
 				debug("Host '" . $host['description'] . "' already in neighbor discovery table");
 				// Update existing entry to ensure it's enabled
-				db_execute_prepared('UPDATE plugin_neighbor_host
-					SET enabled = 1
-					WHERE host_id = ?',
-					[$host['id']]);
+					db_execute_prepared('UPDATE plugin_neighbor_host
+						SET enabled = ?
+						WHERE host_id = ?',
+						['on', $host['id']]);
 				$hostsUpdated++;
 			} else {
 				// Add new host with default settings
-				db_execute_prepared('INSERT INTO plugin_neighbor_host
-					(host_id, enabled, discover_cdp, discover_lldp, discover_ip)
-					VALUES (?, 1, 1, 1, 1)',
-					[$host['id']]);
+					db_execute_prepared('INSERT INTO plugin_neighbor_host
+						(host_id, enabled, discover_cdp, discover_lldp, discover_ip)
+						VALUES (?, ?, ?, ?, ?)',
+						[$host['id'], 'on', 'on', 'on', 'on']);
 				debug("Host '" . $host['description'] . "' added to neighbor discovery table");
 				$hostsAdded++;
 			}
