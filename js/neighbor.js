@@ -190,8 +190,14 @@ $(document).ready(function() {
 					locateInMenu: 'always',
 					text: 'Seed',
 					onClick: function() {
-						var seed = network.getSeed();
-						DevExpress.ui.notify("Seed is: " + seed);
+						// guard against missing network.getSeed (map may not expose it)
+						var seed = null;
+						if (typeof network !== 'undefined' && typeof network.getSeed === 'function') {
+							seed = network.getSeed();
+						} else if (typeof mapOptions !== 'undefined' && mapOptions.seed) {
+							seed = mapOptions.seed;
+						}
+						DevExpress.ui.notify("Seed is: " + (seed !== null && seed !== undefined ? seed : 'n/a'));
 					}
 				}
 			];

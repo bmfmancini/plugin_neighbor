@@ -13,13 +13,16 @@ var edgesData = [];			// Native array for edges
 var simulation = null;		// D3 force simulation
 var svg = null;				// SVG container
 var zoom = null;			// D3 zoom behavior
-var network = {};			// Network object for compatibility
+var network = {
+	getSeed: function() { return (typeof mapOptions.seed !== 'undefined') ? mapOptions.seed : null; }
+};		// Network object for compatibility (getSeed provided for toolbar)
 var refreshTimer = null;	// Timer for live updates
 var nodeSize = 48;			// Icon size in pixels (controlled by slider)
 var labelSize = 12;			// Label font size in pixels (controlled by slider)
 
-// SVG symbols for router icons
-const routerSymbol = `
+// SVG symbols for router icons (guarded so re-evaluating the script won't redeclare)
+if (typeof window.routerSymbol === 'undefined') {
+	window.routerSymbol = `
 	<symbol id="router" viewBox="0 0 24 24">
 		<rect x="2" y="4" width="20" height="12" rx="2" fill="#e3f2fd" stroke="#1976d2" stroke-width="2"/>
 		<circle cx="6" cy="8" r="1.5" fill="#1976d2"/>
@@ -31,6 +34,8 @@ const routerSymbol = `
 		<path d="M8 16 L12 20 L16 16" stroke="#1976d2" stroke-width="2" fill="none"/>
 	</symbol>
 `;
+}
+
 
 // Lightning bolt path generator
 function createLightningBolt(x1, y1, x2, y2, segments = 8) {
@@ -226,9 +231,13 @@ var drawMap = function() {
 			data: dataOptions,
 			dataType: "jsonp",
 			success: function(response) {
-				var responseArray = response.Response?.[0] || [];
-				var edges = responseArray.edges || [];
-				var nodes = responseArray.nodes || [];
+				var responseArray = response.Response?.[0] || {};
+					// preserve server-supplied seed so UI/tooling can access it
+					mapOptions.seed = responseArray.seed || null;
+
+				// Defensive initialization of nodes/edges from server response
+				var edges = Array.isArray(responseArray.edges) ? responseArray.edges : (responseArray.edges || []);
+				var nodes = Array.isArray(responseArray.nodes) ? responseArray.nodes : (responseArray.nodes || []);
 
 				// If the user has selected hosts, pre-filter edges returned by server as a safety net
 				if (mapOptions.selectedHosts && mapOptions.selectedHosts.length) {
@@ -301,21 +310,34 @@ function processEdgeData(edges) {
 	var colorArray = generateColor("#ff3300", "#66ff66", 10);
 
 	edges.forEach((edge, i) => {
-		// Convert vis.js format to D3 format
-		edge.source = edge.from;
-		edge.target = edge.to;
+		// Convert vis.js format to D3 format — be defensive about incoming shapes
+		// prefer existing `source`/`target`, otherwise fall back to `from`/`to`.
+		edge.source = (edge.source ?? edge.from ?? edge.src ?? null);
+		edge.target = (edge.target ?? edge.to ?? edge.dst ?? null);
 
-		// Determine edge type based on protocol
+		// Normalize numeric ids when possible (helps d3 id matching)
+		if (edge.source !== null && edge.source !== undefined && String(edge.source).match(/^\d+$/)) {
+			edge.source = Number(edge.source);
+		}
+		if (edge.target !== null && edge.target !== undefined && String(edge.target).match(/^\d+$/)) {
+			edge.target = Number(edge.target);
+		}
+
+		// Determine edge type based on protocol (preserve existing if present)
 		if (edge.protocol === 'cdp' || edge.protocol === 'lldp') {
 			edge.type = 'physical';
 		} else if (['bgp', 'ospf', 'isis', 'eigrp'].includes(edge.protocol)) {
 			edge.type = 'logical';
 		} else {
-			edge.type = 'physical'; // default
+			edge.type = edge.type ?? 'physical'; // default
 		}
 
-		// Process traffic data for colors
+		// Process traffic data for colors — `edge.poller` may be a JSON string from server
 		var pollerData = edge.poller;
+		if (typeof pollerData === 'string') {
+			try { pollerData = JSON.parse(pollerData); } catch (err) { pollerData = {}; }
+		}
+
 		if (pollerData?.traffic_in) {
 			var deltaMax = Math.max(pollerData.traffic_in.delta, pollerData.traffic_out.delta);
 			deltaMax = parseInt(deltaMax * 8 / 1000 / 1000); // Convert to Mbps
@@ -336,6 +358,12 @@ function processEdgeData(edges) {
 			var delta_out = Number(pollerData.traffic_out.delta * 8 / 1000 / 1000).toFixed(2);
 			edge.title = (edge.title || "") + `<br>Inbound: ${delta_in} Mbps, Outbound: ${delta_out} Mbps`;
 		}
+
+		// Diagnostic: if source/target missing warn (helps find server/client shape mismatch)
+		if (edge.source === null || edge.source === undefined || edge.target === null || edge.target === undefined) {
+			console.warn('[neighbor map] edge missing source/target — will be filtered out:', edge);
+		}
+
 	});
 }
 
@@ -383,7 +411,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 		.attr("height", height);
 
 	var defs = svg.append("defs");
-	defs.html(routerSymbol);
+	defs.html(window.routerSymbol);
 
 	// Add zoom behavior
 	zoom = d3.zoom()
