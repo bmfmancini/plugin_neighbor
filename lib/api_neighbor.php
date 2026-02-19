@@ -1610,27 +1610,20 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
 				}
 				$seen[$neighbor_hash] = 1;
 
-				$from = $rec3['host_id'];
-				$to   = $rec3['neighbor_host_id'];
+				$from = (int) $rec3['host_id'];
+				$to   = (int) $rec3['neighbor_host_id'];
 
-				// Validate that sites exist and have coordinates
-				if (!isset($sites[$from]) || !isset($sites[$to])) {
-					continue;
-				}
+				// Attempt to tolerate missing site coordinates (neighbors may not be managed hosts).
+				// If neighbor_host_id is missing or site entry is absent, we'll still create an edge
+				// and later synthesize a node for the neighbor in the AJAX response.
+				$site_a = isset($sites[$from]) ? $sites[$from] : [];
+				$site_b = isset($sites[$to]) ? $sites[$to] : [];
 
-				$site_a = $sites[$from];
-				$site_b = $sites[$to];
-
-				// Check if coordinates are valid (not null/empty)
+				// Extract lat/lon where available, otherwise null
 				$lat_a = isset($site_a['latitude']) && $site_a['latitude'] !== null && $site_a['latitude'] !== '' ? $site_a['latitude'] : null;
 				$lon_a = isset($site_a['longitude']) && $site_a['longitude'] !== null && $site_a['longitude'] !== '' ? $site_a['longitude'] : null;
 				$lat_b = isset($site_b['latitude']) && $site_b['latitude'] !== null && $site_b['latitude'] !== '' ? $site_b['latitude'] : null;
 				$lon_b = isset($site_b['longitude']) && $site_b['longitude'] !== null && $site_b['longitude'] !== '' ? $site_b['longitude'] : null;
-
-				// Skip if any coordinate is missing
-				if ($lat_a === null || $lon_a === null || $lat_b === null || $lon_b === null) {
-					continue;
-				}
 
 				$coords_a = sprintf('%s,%s', $lat_a, $lon_a);
 				$coords_b = sprintf('%s,%s', $lat_b, $lon_b);
@@ -1652,11 +1645,62 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
 				$graph_local_id = get_interface_graph_local($from, $rec3['snmp_id'], $interface_graph_template_id);
 				$poller_json    = isset($edge_data[$from][$to][$rrd_file]) ? $edge_data[$from][$to][$rrd_file] : '{}';
 
+				// If the neighbor host id is missing (0) or there is no site entry for it,
+				// synthesize a negative id for the remote endpoint so the client can render
+				// the neighbor as a distinct node even when it's not a managed host.
+				$to_id = $to;
+
+				// If neighbor_host_id is missing/zero, try to resolve by hostname or description
+				if ($to_id <= 0 || !isset($sites[$to_id])) {
+					$resolved = null;
+					if (!empty($rec3['neighbor_hostname'])) {
+						$name = $rec3['neighbor_hostname'];
+						$resolved = db_fetch_cell_prepared('SELECT id FROM host WHERE hostname = ? OR description = ? LIMIT 1', [$name, $name]);
+					}
+
+					if ($resolved && is_numeric($resolved)) {
+						$to_id = (int) $resolved;
+					} else {
+						// Try resolving by known neighbor IPs stored in plugin tables
+						$ip_candidates = [];
+						if (!empty($rec3['neighbor_interface_ip'])) $ip_candidates[] = $rec3['neighbor_interface_ip'];
+						if (!empty($rec3['neighbor_host_ip'])) $ip_candidates[] = $rec3['neighbor_host_ip'];
+						if (!empty($rec3['neighbor_ip'])) $ip_candidates[] = $rec3['neighbor_ip'];
+						if (!empty($rec3['interface_ip'])) $ip_candidates[] = $rec3['interface_ip'];
+
+						$resolved_by_ip = null;
+						foreach ($ip_candidates as $ip) {
+							$ip = trim($ip);
+							if ($ip === '') continue;
+							// Check plugin cache for a host mapping
+							$candidate = db_fetch_cell_prepared('SELECT host_id FROM plugin_neighbor_ipv4_cache WHERE interface_ip = ? OR neighbor_interface_ip = ? OR host_ip = ? LIMIT 1', [$ip, $ip, $ip]);
+							if ($candidate && is_numeric($candidate)) {
+								$resolved_by_ip = (int) $candidate;
+								break;
+							}
+						}
+
+						if ($resolved_by_ip) {
+							$to_id = $resolved_by_ip;
+						} else {
+							// Still unresolved: create a stable synthetic negative id based on neighbor_hash/hostname
+							$hash_seed = isset($rec3['neighbor_hash']) && $rec3['neighbor_hash'] !== '' ? $rec3['neighbor_hash'] : ($rec3['neighbor_hostname'] . '_' . $rec3['neighbor_interface_name']);
+							$crc = crc32($hash_seed) & 0x7fffffff;
+							$to_id = -(int) $crc;
+						}
+					}
+				}
+
 				$edges[] = [
 					'from'      => $from,
-					'to'        => $to,
+					'to'        => $to_id,
+					// also include source/target for clients that expect that naming
+					'source'    => (int) $from,
+					'target'    => $to_id,
 					'label'     => $label,
 					'title'     => $title,
+					'from_label'=> $rec3['hostname'],
+					'to_label'  => $rec3['neighbor_hostname'],
 					'smooth'    => true,
 					'poller'    => $poller_json,
 					'rrd_file'  => $rrd_file,
@@ -1739,6 +1783,37 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 
 	// Store edges in database for poller integration
 	update_edges_db($rule_id, $edges);
+
+	// Ensure any synthetic nodes referenced by edges are present in the projected nodes list
+	$existing_ids = [];
+	foreach ($projected as $p) {
+		$existing_ids[(string)$p['id']] = true;
+	}
+	// Place synthetic/missing nodes near the canvas center with slight jitter
+	$center_x = intval($res_x / 2);
+	$center_y = intval($res_y / 2);
+	$added = 0;
+	foreach ($edges as $edge) {
+		$from_id = isset($edge['from']) ? $edge['from'] : (isset($edge['source']) ? $edge['source'] : null);
+		$to_id   = isset($edge['to']) ? $edge['to'] : (isset($edge['target']) ? $edge['target'] : null);
+		// For both endpoints, if missing add a synthetic node using labels supplied by the edge
+		foreach (array($from_id, $to_id) as $idx => $nid) {
+			if ($nid === null) continue;
+			$nid_str = (string)$nid;
+			if (!isset($existing_ids[$nid_str])) {
+				$label_field = ($idx === 0) ? 'from_label' : 'to_label';
+				$label = isset($edge[$label_field]) && $edge[$label_field] !== '' ? $edge[$label_field] : (isset($edge['title']) ? $edge['title'] : '');
+				$projected[] = [
+					'id'    => $nid,
+					'label' => $label,
+					'x'     => $center_x + (($added % 5) * 20) - 40,
+					'y'     => $center_y + (intval($added / 5) * 20) - 40,
+				];
+				$existing_ids[$nid_str] = true;
+				$added++;
+			}
+		}
+	}
 
 	// Prepare and return JSON response
 	$query_callback = get_request_var('callback', 'Callback');
