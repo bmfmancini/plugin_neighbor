@@ -479,7 +479,7 @@ function processHosts() {
 				INNER JOIN host AS h ON pnh.host_id = h.id
 				WHERE h.disabled != 'on'
 				AND h.status != 1
-				AND pnh.enabled = 1");
+				AND pnh.enabled = 'on'");
 
 	// Remove entries for disabled or removed hosts
 	db_execute("DELETE FROM plugin_neighbor_xdp WHERE host_id IN (SELECT id FROM host WHERE disabled='on')");
