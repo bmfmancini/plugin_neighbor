@@ -73,18 +73,92 @@ function setMapOptionsFromHostSelect(select) {
 	drawMap();
 }
 
+function normalizeResponseArray(response) {
+	if (!response) {
+		return [];
+	}
+
+	if (Array.isArray(response)) {
+		return response;
+	}
+
+	if (Array.isArray(response.Response)) {
+		if (Array.isArray(response.Response[0])) {
+			return response.Response[0];
+		}
+		return response.Response;
+	}
+
+	return [];
+}
+
+function enableMapMultiselect(mapSelect) {
+	if (!mapSelect || typeof $ !== 'function' || !$.fn || typeof $.fn.multiselect !== 'function') {
+		return;
+	}
+
+	const $mapSelect = $(mapSelect);
+	try {
+		if ($mapSelect.data('multiselect')) {
+			$mapSelect.multiselect('refresh');
+			return;
+		}
+
+		$mapSelect.multiselect({
+			header: false,
+			selectedList: 1,
+			noneSelectedText: 'Select a Map'
+		});
+	} catch (error) {
+		console.warn('[neighbor] map multiselect init failed, using native select', error);
+	}
+}
+
+function enableHostMultiselect(hostSelect) {
+	if (!hostSelect || typeof $ !== 'function' || !$.fn || typeof $.fn.multiselect !== 'function') {
+		return;
+	}
+
+	const $hostSelect = $(hostSelect);
+	if ($hostSelect.data('multiselect')) {
+		$hostSelect.multiselect('refresh');
+		return;
+	}
+
+	$hostSelect.multiselect({
+		selectedList: 3,
+		noneSelectedText: 'Select host(s)...',
+		selectedText: '# selected',
+		checkAllText: 'Select all',
+		uncheckAllText: 'Clear',
+		close: function() {
+			setMapOptionsFromHostSelect(hostSelect);
+		},
+		click: function() {
+			setMapOptionsFromHostSelect(hostSelect);
+		},
+		checkAll: function() {
+			setMapOptionsFromHostSelect(hostSelect);
+		},
+		uncheckAll: function() {
+			setMapOptionsFromHostSelect(hostSelect);
+		}
+	});
+}
+
 function populateHostSelector(hostSelect) {
 	$.ajax({
 		method: 'GET',
 		url: 'ajax.php?action=ajax_neighbor_hosts&format=jsonp',
 		dataType: 'jsonp',
 		success: function(resp) {
-			const items = resp && resp.Response && resp.Response[0] ? resp.Response[0] : [];
+			const items = normalizeResponseArray(resp);
 			hostSelect.innerHTML = items.map(function(item) {
 				const id = item && item.id !== undefined ? item.id : '';
 				const name = item && item.name !== undefined ? item.name : id;
 				return "<option value='" + String(id) + "'>" + String(name) + "</option>";
 			}).join('');
+			enableHostMultiselect(hostSelect);
 		}
 	});
 }
@@ -94,9 +168,22 @@ function updateRuleSelectorOptions() {
 		return;
 	}
 
+	if (!mapList.length) {
+		if (rule_id !== null && rule_id !== undefined && String(rule_id) !== '') {
+			selectBox.innerHTML = "<option value='" + String(rule_id) + "' selected>Map " + String(rule_id) + "</option>";
+		} else {
+			selectBox.innerHTML = "<option value=''>No maps found</option>";
+		}
+		enableMapMultiselect(selectBox);
+		return;
+	}
+
 	selectBox.innerHTML = mapList.map(function(item) {
 		const id = item && item.id !== undefined ? String(item.id) : '';
-		const name = item && item.name !== undefined ? String(item.name) : id;
+		let name = item && item.name !== undefined ? String(item.name) : '';
+		if (name.trim() === '') {
+			name = id ? ('Map ' + id) : 'Unnamed Map';
+		}
 		const selected = String(rule_id) === id ? ' selected' : '';
 		return "<option value='" + id + "'" + selected + '>' + name + '</option>';
 	}).join('');
@@ -105,6 +192,8 @@ function updateRuleSelectorOptions() {
 		selectBox.value = String(mapList[0].id);
 		rule_id = selectBox.value;
 	}
+
+	enableMapMultiselect(selectBox);
 }
 
 // Get the list of maps from AJAX
@@ -113,8 +202,28 @@ var ruleDropdown = function() {
 		method: 'GET',
 		url: 'ajax.php?action=ajax_map_list&format=jsonp',
 		dataType: 'jsonp',
-		success: function(response) {
-			mapList = typeof response.Response[0] === 'undefined' ? [] : response.Response[0];
+			success: function(response) {
+				const rows = normalizeResponseArray(response);
+				mapList = rows.map(function(row) {
+					const id = row && row.id !== undefined ? row.id : (row && row.rule_id !== undefined ? row.rule_id : '');
+					const rawName = row && row.name !== undefined ? row.name : '';
+					const rawDesc = row && row.description !== undefined ? row.description : '';
+					let name = String(rawName === null ? '' : rawName).trim();
+					if (name === '') {
+						name = String(rawDesc === null ? '' : rawDesc).trim();
+					}
+					if (name === '') {
+						name = 'Map ' + id;
+					}
+					return { id: id, name: name };
+				}).filter(function(item) {
+					return String(item.id) !== '';
+				});
+			updateRuleSelectorOptions();
+		},
+		error: function(xhr, status, error) {
+			console.error('[neighbor] failed to load map list', status, error);
+			mapList = [];
 			updateRuleSelectorOptions();
 		}
 	});
@@ -149,6 +258,7 @@ function renderMapToolbar() {
 
 	ruleDropdown(user_id, rule_id);
 	populateHostSelector(hostSelect);
+	enableMapMultiselect(selectBox);
 
 	selectBox.addEventListener('change', function() {
 		rule_id = this.value;

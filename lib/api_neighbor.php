@@ -1922,13 +1922,13 @@ function display_interface_map($rule_id = 1) {
 	// Toolbar with map options
 	print "<div id='neighbor_map_toolbar'></div>\n";
 	// Load the d3.js library
-	printf("<script type='text/javascript' src='%s'></script>",'js/d3.v7.min.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/moment.min.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map_state.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map_filters.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map_api.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map_render.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map.js');
+	printf("<script type='text/javascript' src='%s'></script>",'plugins/neighbor/js/d3.v7.min.js');
+	printf("<script type='text/javascript' src='%s'></script>",'plugins/neighbor/js/moment.min.js');
+	printf("<script type='text/javascript' src='%s'></script>",'plugins/neighbor/js/map_state.js');
+	printf("<script type='text/javascript' src='%s'></script>",'plugins/neighbor/js/map_filters.js');
+	printf("<script type='text/javascript' src='%s'></script>",'plugins/neighbor/js/map_api.js');
+	printf("<script type='text/javascript' src='%s'></script>",'plugins/neighbor/js/map_render.js');
+	printf("<script type='text/javascript' src='%s'></script>",'plugins/neighbor/js/map.js');
 
 	// Print the div to hold the map in
 	print "<form><input type='hidden' id='rule_id' name='rule_id' value='$rule_id'></form>\n";
