@@ -155,6 +155,7 @@ if ($mainRun) {
 	debug('Auto-discovering all hosts...');
 	autoDiscoverHosts();
 } else {
+	purgeStaleNeighborData();
 	discoverHost($hostId);
 }
 
@@ -184,6 +185,39 @@ function debug($message) {
 		print $timestamp . ' NEIGHBOR DEBUG: ' . trim($message) . "\n";
 		cacti_log('NEIGHBOR DEBUG: ' . trim($message), false, 'NEIGHBOR');
 	}
+}
+
+/**
+ * Get configured dead timer in seconds.
+ *
+ * @return int Dead timer in seconds, or -1 when aging is disabled.
+ */
+function getNeighborDeadTimer() {
+	$deadTimer = read_config_option('neighbor_global_deadtimer');
+
+	if ($deadTimer === '' || $deadTimer === null) {
+		return 300;
+	}
+
+	return (int) $deadTimer;
+}
+
+/**
+ * Purge stale neighbor rows based on configured dead timer.
+ *
+ * @return void
+ */
+function purgeStaleNeighborData() {
+	$deadTimer = getNeighborDeadTimer();
+
+	// -1 means disabled in plugin settings.
+	if ($deadTimer < 0) {
+		return;
+	}
+
+	db_execute_prepared('DELETE FROM plugin_neighbor_xdp WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
+	db_execute_prepared('DELETE FROM plugin_neighbor_ipv4 WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
+	db_execute_prepared('DELETE FROM plugin_neighbor_ipv4_cache WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
 }
 
 // neighbor_host_discovery_enabled() function is now in lib/neighbor_sql_tables.php
@@ -250,8 +284,6 @@ function discoverIpNeighbors($host) {
 	$oidTable = get_neighbor_oid_table();
 
 	debug('Processing IP Neighbors: ' . $host['description']);
-
-	$pollerDeadtimer = read_config_option('neighbor_global_deadtimer') ? intval(read_config_option('neighbor_global_deadtimer')) : 60;
 
 	$hostId          = $host['id'];
 	$myHostname	     = isset($host['description']) ? $host['description'] : '';
@@ -431,8 +463,6 @@ function discoverIpNeighbors($host) {
 			$recordHash    = md5(serialize($hashArray));												// This should be unique to each CDP entry
 			$neighHash     = md5(serialize($neighArray));												// This should allow us to pair neighbors together
 
-			db_execute_prepared('DELETE from plugin_neighbor_ipv4 where last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)',[$pollerDeadtimer]);
-
 			if (db_execute_prepared('REPLACE  INTO `plugin_neighbor_ipv4`
 				    (`type`,`vrf`,`host_id`, `hostname`, `snmp_id`,
 					`interface_name`, `interface_alias`, `interface_ip`, `interface_netmask`,`interface_hwaddr`,
@@ -473,6 +503,8 @@ function processHosts() {
 		cacti_log('NEIGHBOR: WARNING: Another neighbor process is still running!  Exiting...', true, 'NEIGHBOR');
 		exit(0);
 	}
+
+	purgeStaleNeighborData();
 
 	$hosts = db_fetch_assoc("SELECT pnh.host_id, h.description, h.hostname
 				FROM plugin_neighbor_host AS pnh
