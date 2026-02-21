@@ -23,10 +23,29 @@ if (typeof window.routerSymbol === 'undefined') {
 
 
 function updateLastSeen(e) {
-	const value = e.component.option('value');
+	let value = e;
+	if (e && typeof e === 'object') {
+		if (e.component && typeof e.component.option === 'function') {
+			value = e.component.option('value');
+		} else if (Object.prototype.hasOwnProperty.call(e, 'value')) {
+			value = e.value;
+		}
+	}
+	value = Number(value);
+	if (Number.isNaN(value)) {
+		value = 3;
+	}
 	mapOptions.lastSeen = value;
 	mapOptions.ajax = false;
 	drawMap();
+}
+
+function notifyMap(message, level) {
+	if (typeof neighborNotify === 'function') {
+		neighborNotify(message, level);
+		return;
+	}
+	console.log((level || 'info') + ': ' + message);
 }
 
 // Store the coords and options
@@ -57,10 +76,10 @@ function storeCoords() {
 		},
 		function(response) {
 			const message = response.Response?.[0]?.message || '';
-			DevExpress.ui.notify(message, 'success', 3000);
+			notifyMap(message, 'success');
 		},
 		function() {
-			DevExpress.ui.notify('Error saving map positions', 'error', 3000);
+			notifyMap('Error saving map positions', 'error');
 		}
 	);
 }
@@ -77,12 +96,12 @@ function resetMap() {
 		},
 		function(response) {
 			const message = response.Response?.[0]?.message || '';
-			DevExpress.ui.notify(message, 'success', 3000);
+			notifyMap(message, 'success');
 			mapOptions.ajax = true;
 			drawMap();
 		},
 		function() {
-			DevExpress.ui.notify('Error resetting map', 'error', 3000);
+			notifyMap('Error resetting map', 'error');
 		}
 	);
 }
@@ -96,7 +115,14 @@ function drawMap() {
 	// don't fetch or render a map by default — show a helpful placeholder instead.
 	const selectedHostsExist = Array.isArray(mapOptions.selectedHosts) && mapOptions.selectedHosts.length > 0;
 	// Only treat a map as "selected" when the toolbar SelectBox actually has a user-chosen value.
-	const selectBoxValue = (typeof selectBox !== 'undefined' && selectBox && typeof selectBox.option === 'function') ? selectBox.option('value') : null;
+	let selectBoxValue = null;
+	if (typeof selectBox !== 'undefined' && selectBox) {
+		if (typeof selectBox.option === 'function') {
+			selectBoxValue = selectBox.option('value');
+		} else if (Object.prototype.hasOwnProperty.call(selectBox, 'value')) {
+			selectBoxValue = selectBox.value;
+		}
+	}
 	const hasMapSelected = selectBoxValue !== null && selectBoxValue !== undefined && String(selectBoxValue) !== '';
 	// If neither a map nor hosts are selected, show placeholder and skip rendering
 	if (!selectedHostsExist && !hasMapSelected) {
@@ -180,7 +206,7 @@ function drawMap() {
 					}
 				},
 				function() {
-						DevExpress.ui.notify('Error loading map data', 'error', 3000);
+						notifyMap('Error loading map data', 'error');
 					}
 				);
 				} else {
