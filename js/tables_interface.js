@@ -69,6 +69,56 @@
 		return String(value).toLowerCase();
 	}
 
+	function normalizeHostFilterValues(value) {
+		if (Array.isArray(value)) {
+			return value.map(function(v) { return String(v || '').trim(); }).filter(function(v) { return v !== ''; });
+		}
+
+		if (value === null || value === undefined || value === '') {
+			return [];
+		}
+
+		return [String(value).trim()].filter(function(v) { return v !== ''; });
+	}
+
+	function enableHostMultiselectFilter(selectEl, onChange) {
+		if (!selectEl || typeof $ !== 'function' || !$.fn || typeof $.fn.multiselect !== 'function') {
+			return;
+		}
+
+		const $select = $(selectEl);
+
+		if ($select.data('multiselect')) {
+			$select.multiselect('destroy');
+		}
+
+		function emitSelection() {
+			const raw = $select.val();
+			onChange(normalizeHostFilterValues(raw));
+		}
+
+		$select.multiselect({
+			selectedList: 2,
+			header: true,
+			minWidth: 260,
+			noneSelectedText: 'All Hosts',
+			selectedText: '# selected',
+			checkAllText: 'Select all',
+			uncheckAllText: 'Clear',
+			click: emitSelection,
+			checkAll: emitSelection,
+			uncheckAll: emitSelection,
+			close: emitSelection
+		});
+
+		if (typeof $.fn.multiselectfilter === 'function') {
+			$select.multiselectfilter({
+				label: 'Search',
+				placeholder: 'Type to filter'
+			});
+		}
+	}
+
 	function renderNeighborTypeSelector(currentType) {
 		const holder = document.getElementById('neighbor_toolbar');
 		if (!holder) {
@@ -92,6 +142,9 @@
 				"</option>";
 			}).join(''),
 			"</select>",
+			"<label for='neighbor_host_filter'><strong>Host</strong></label>",
+			"<select id='neighbor_host_filter' multiple='multiple' style='min-width:260px;padding:4px;'>",
+			"</select>",
 			"<button type='button' class='neighbor-btn-primary' id='neighbor_toolbar_go'>Go</button>",
 			"<button type='button' id='neighbor_toolbar_clear'>Clear</button>",
 			"</div>",
@@ -109,13 +162,29 @@
 		});
 
 		const search = document.getElementById('neighbor_table_search');
+		const hostFilter = document.getElementById('neighbor_host_filter');
 		const goButton = document.getElementById('neighbor_toolbar_go');
 		const clearButton = document.getElementById('neighbor_toolbar_clear');
+
+		if (hostFilter) {
+			hostFilter.addEventListener('change', function() {
+				if (typeof window.neighborApplyHostFilter === 'function') {
+					window.neighborApplyHostFilter(Array.prototype.map.call(this.selectedOptions || [], function(opt) {
+						return String(opt.value || '').trim();
+					}).filter(function(v) {
+						return v !== '';
+					}));
+				}
+			});
+		}
 
 		if (goButton) {
 			goButton.addEventListener('click', function() {
 				if (typeof window.neighborApplyTableSearch === 'function') {
 					window.neighborApplyTableSearch(search ? search.value : '');
+				}
+				if (typeof window.neighborApplyHostFilter === 'function') {
+					window.neighborApplyHostFilter(hostFilter ? hostFilter.value : '');
 				}
 			});
 		}
@@ -125,8 +194,16 @@
 				if (search) {
 					search.value = '';
 				}
+				if (hostFilter) {
+					Array.prototype.forEach.call(hostFilter.options || [], function(option) {
+						option.selected = false;
+					});
+				}
 				if (typeof window.neighborApplyTableSearch === 'function') {
 					window.neighborApplyTableSearch('');
+				}
+				if (typeof window.neighborApplyHostFilter === 'function') {
+					window.neighborApplyHostFilter('');
 				}
 			});
 		}
@@ -141,6 +218,7 @@
 		const rows = Array.isArray(data) ? data.slice() : [];
 		const state = {
 			query: '',
+			hosts: [],
 			sortField: columns.length ? columns[0].dataField : null,
 			sortDirection: 'asc'
 		};
@@ -166,14 +244,73 @@
 		const tbody = holder.querySelector('#neighbor_table tbody');
 		const count = holder.querySelector('#neighbor_table_count');
 		const headers = holder.querySelectorAll('#neighbor_table th[data-field]');
+		const hostFilter = document.getElementById('neighbor_host_filter');
 
-		function filterRows() {
-			if (!state.query) {
-				return rows.slice();
+		function getRowHostnames(row) {
+			const hosts = [];
+			if (!row || typeof row !== 'object') {
+				return hosts;
+			}
+			if (row.hostname !== null && row.hostname !== undefined && String(row.hostname).trim() !== '') {
+				hosts.push(String(row.hostname).trim());
+			}
+			if (row.neighbor_hostname !== null && row.neighbor_hostname !== undefined && String(row.neighbor_hostname).trim() !== '') {
+				hosts.push(String(row.neighbor_hostname).trim());
+			}
+			return hosts;
+		}
+
+		function populateHostFilter() {
+			if (!hostFilter) {
+				return;
 			}
 
-			const q = state.query.toLowerCase();
+			const hostMap = {};
+			rows.forEach(function(row) {
+				getRowHostnames(row).forEach(function(hostname) {
+					hostMap[hostname] = true;
+				});
+			});
+
+			const hosts = Object.keys(hostMap).sort(function(a, b) {
+				return a.localeCompare(b);
+			});
+
+			hostFilter.innerHTML = hosts.map(function(host) {
+				return "<option value='" + escapeHtml(host) + "'>" + escapeHtml(host) + "</option>";
+			}).join('');
+
+			state.hosts = state.hosts.filter(function(hostname) {
+				return hostMap[hostname];
+			});
+
+			Array.prototype.forEach.call(hostFilter.options || [], function(option) {
+				option.selected = state.hosts.indexOf(option.value) !== -1;
+			});
+
+			enableHostMultiselectFilter(hostFilter, function(selectedHosts) {
+				state.hosts = selectedHosts;
+				renderRows();
+			});
+		}
+
+		function filterRows() {
 			return rows.filter(function(row) {
+				if (state.hosts.length > 0) {
+					const hostMatch = getRowHostnames(row).some(function(hostname) {
+						return state.hosts.indexOf(hostname) !== -1;
+					});
+
+					if (!hostMatch) {
+						return false;
+					}
+				}
+
+				if (!state.query) {
+					return true;
+				}
+
+				const q = state.query.toLowerCase();
 				return columns.some(function(column) {
 					const value = row ? row[column.dataField] : '';
 					return String(value === null || value === undefined ? '' : value).toLowerCase().indexOf(q) !== -1;
@@ -230,6 +367,19 @@
 			renderRows();
 		};
 
+		window.neighborApplyHostFilter = function(value) {
+			state.hosts = normalizeHostFilterValues(value);
+			if (hostFilter) {
+				Array.prototype.forEach.call(hostFilter.options || [], function(option) {
+					option.selected = state.hosts.indexOf(option.value) !== -1;
+				});
+				if (typeof $ === 'function' && $.fn && typeof $.fn.multiselect === 'function') {
+					$(hostFilter).multiselect('refresh');
+				}
+			}
+			renderRows();
+		};
+
 		headers.forEach(function(header) {
 			header.addEventListener('click', function() {
 				const field = this.getAttribute('data-field');
@@ -255,6 +405,7 @@
 			});
 		});
 
+		populateHostFilter();
 		renderRows();
 	}
 
