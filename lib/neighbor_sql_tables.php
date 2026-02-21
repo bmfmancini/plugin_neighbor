@@ -394,55 +394,55 @@ function neighbor_setup_host_table() {
 		'name'    => 'enabled',
 		'type'    => 'char(3)',
 		'NULL'    => false,
-		'default' => 'on'
+		'default' => ''
 	];
 	$data['columns'][] = [
 		'name'    => 'discover_cdp',
 		'type'    => 'char(3)',
 		'NULL'    => false,
-		'default' => 'on'
+		'default' => ''
 	];
 	$data['columns'][] = [
 		'name'    => 'discover_lldp',
 		'type'    => 'char(3)',
 		'NULL'    => false,
-		'default' => 'on'
+		'default' => ''
 	];
 	$data['columns'][] = [
 		'name'    => 'discover_ip',
 		'type'    => 'char(3)',
 		'NULL'    => false,
-		'default' => 'on'
+		'default' => ''
 	];
 	$data['columns'][] = [
 		'name'    => 'discover_switching',
 		'type'    => 'char(3)',
 		'NULL'    => false,
-		'default' => 'on'
+		'default' => ''
 	];
 	$data['columns'][] = [
 		'name'    => 'discover_ifalias',
 		'type'    => 'char(3)',
 		'NULL'    => false,
-		'default' => 'on'
+		'default' => ''
 	];
 	$data['columns'][] = [
 		'name'    => 'discover_ospf',
 		'type'    => 'char(3)',
 		'NULL'    => false,
-		'default' => 'on'
+		'default' => ''
 	];
 	$data['columns'][] = [
 		'name'    => 'discover_bgp',
 		'type'    => 'char(3)',
 		'NULL'    => false,
-		'default' => 'on'
+		'default' => ''
 	];
 	$data['columns'][] = [
 		'name'    => 'discover_isis',
 		'type'    => 'char(3)',
 		'NULL'    => false,
-		'default' => 'on'
+		'default' => ''
 	];
 	$data['columns'][] = [
 		'name'    => 'last_discovered',
@@ -562,7 +562,7 @@ function add_fields_host() {
 				'name'    => $field,
 				'type'    => 'char(3)',
 				'NULL'    => false,
-				'default' => 'on',
+				'default' => '',
 				'after'   => $last
 			]);
 		}
@@ -583,15 +583,15 @@ function neighbor_get_host_settings($host_id) {
 		// Return default settings if host not found
 		$settings = [
 			'host_id'            => $host_id,
-			'enabled'            => 'on',
-			'discover_cdp'       => 'on',
-			'discover_lldp'      => 'on',
-			'discover_ip'        => 'on',
-			'discover_switching' => 'on',
-			'discover_ifalias'   => 'on',
-			'discover_ospf'      => 'on',
-			'discover_bgp'       => 'on',
-			'discover_isis'      => 'on',
+			'enabled'            => '',
+			'discover_cdp'       => '',
+			'discover_lldp'      => '',
+			'discover_ip'        => '',
+			'discover_switching' => '',
+			'discover_ifalias'   => '',
+			'discover_ospf'      => '',
+			'discover_bgp'       => '',
+			'discover_isis'      => '',
 		];
 	}
 
@@ -691,8 +691,8 @@ function neighbor_host_discovery_enabled($host, $field) {
 		}
 	}
 
-	// Default to enabled if not found
-	return true;
+	// Default to disabled if not found
+	return false;
 }
 
 /**

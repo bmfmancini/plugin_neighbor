@@ -247,7 +247,7 @@ function neighbor_config_settings() {
 			'friendly_name' => __('Poller Enabled'),
 			'description'   => __('Check this box to enable polling of neighbors.'),
 			'method'        => 'checkbox',
-			'default'       => 'on'
+			'default'       => ''
 		],
 		'neighbor_global_discover_header' => [
 			'friendly_name' => __('Neighbor Discovery'),
@@ -257,19 +257,19 @@ function neighbor_config_settings() {
 			'friendly_name' => __('CDP Neighbors'),
 			'description'   => __('Discover Cisco Discovery Protocol neighbors'),
 			'method'        => 'checkbox',
-			'default'       => 'on'
+			'default'       => ''
 		],
 		'neighbor_global_discover_lldp' => [
 			'friendly_name' => __('LLDP Neighbors'),
 			'description'   => __('Discover Logical Link Discovery Protocol neighbors'),
 			'method'        => 'checkbox',
-			'default'       => 'on'
+			'default'       => ''
 		 ],
 		'neighbor_global_discover_ip' => [
 			'friendly_name' => __('IP Neighbors'),
 			'description'   => __('Discover Neighbors in the same IP Subnet'),
 						'method'     => 'checkbox',
-						'default'    => 'on'
+						'default'    => ''
 		],
 		'neighbor_global_subnet_correlation' => [
 			'friendly_name' => __('Minimum Network Mask Correlation'),
@@ -295,13 +295,13 @@ function neighbor_config_settings() {
 			'friendly_name' => __('Switching Neighbors'),
 			'description'   => __('Discover Neighbors in the same IP Subnet'),
 			'method'        => 'checkbox',
-			'default'       => 'on'
+			'default'       => ''
 		],
 		'neighbor_global_discover_ifalias' => [
 			'friendly_name' => __('Interface Descriptions'),
 			'description'   => __('Discover Neighbors using interface descriptions'),
 			'method'        => 'checkbox',
-			'default'       => 'on'
+			'default'       => ''
 		],
 		'neighbor_global_discover_routing_header' => [
 			'friendly_name' => __('Routing Protocols'),
@@ -311,19 +311,19 @@ function neighbor_config_settings() {
 			'friendly_name' => __('OSPF Neighbors'),
 			'description'   => __('Discover OSPF Neighbors'),
 			'method'        => 'checkbox',
-			'default'       => 'on'
+			'default'       => ''
 		 ],
 		 'neighbor_global_discover_bgp' => [
 			'friendly_name' => __('BGP Neighbors'),
 			'description'   => __('Discover Internal BGP Neighbors'),
 			'method'        => 'checkbox',
-			'default'       => 'on'
+			'default'       => ''
 		 ],
 		 'neighbor_global_discover_isis' => [
 			'friendly_name' => __('IS-IS Neighbors'),
 			'description'   => __('Discover IS-IS Neighbors'),
 			'method'        => 'checkbox',
-			'default'       => 'on'
+			'default'       => ''
 		 ],
 		'neighbor_global_discover_polling_header' => [
 			'friendly_name' => __('Polling Options'),
@@ -535,8 +535,8 @@ function neighbor_config_form() {
 				'method'        => 'checkbox',
 				'friendly_name' => __('Enable Neighbor Discovery', 'neighbor'),
 				'description'   => __('Enable Neighbor discovery during polling', 'neighbor'),
-				'value'         => isset($neighbor_settings['enabled']) ? $neighbor_settings['enabled'] : 'on',
-				'default'       => 'on',
+				'value'         => isset($neighbor_settings['enabled']) ? $neighbor_settings['enabled'] : '',
+				'default'       => '',
 				'form_id'       => false
 			];
 
@@ -544,8 +544,8 @@ function neighbor_config_form() {
 				'method'        => 'checkbox',
 				'friendly_name' => __('CDP', 'neighbor'),
 				'description'   => __('Discover Cisco Discovery Protocol neighbors', 'neighbor'),
-				'value'         => isset($neighbor_settings['discover_cdp']) ? $neighbor_settings['discover_cdp'] : 'on',
-				'default'       => 'on',
+				'value'         => isset($neighbor_settings['discover_cdp']) ? $neighbor_settings['discover_cdp'] : '',
+				'default'       => '',
 				'form_id'       => false
 			];
 
@@ -553,8 +553,8 @@ function neighbor_config_form() {
 				'method'        => 'checkbox',
 				'friendly_name' => __('LLDP', 'neighbor'),
 				'description'   => __('Discover Logical Link Discovery Protocol neighbors', 'neighbor'),
-				'value'         => '|arg1:neighbor_discover_lldp|',
-				'default'       => 'on',
+				'value'         => isset($neighbor_settings['discover_lldp']) ? $neighbor_settings['discover_lldp'] : '',
+				'default'       => '',
 				'form_id'       => false
 			];
 
@@ -562,8 +562,8 @@ function neighbor_config_form() {
 				'method'        => 'checkbox',
 				'friendly_name' => __('IP Subnets', 'neighbor'),
 				'description'   => __('Discover neighbors in the same IP subnet ', 'neighbor'),
-				'value'         => isset($neighbor_settings['discover_ip']) ? $neighbor_settings['discover_ip'] : 'on',
-				'default'       => 'on',
+				'value'         => isset($neighbor_settings['discover_ip']) ? $neighbor_settings['discover_ip'] : '',
+				'default'       => '',
 				'form_id'       => false
 			];
 
@@ -571,8 +571,8 @@ function neighbor_config_form() {
 				'method'        => 'checkbox',
 				'friendly_name' => __('Switching', 'neighbor'),
 				'description'   => __('Discover neighbors by learned MAC address', 'neighbor'),
-				'value'         => isset($neighbor_settings['discover_switching']) ? $neighbor_settings['discover_switching'] : 'on',
-				'default'       => 'on',
+				'value'         => isset($neighbor_settings['discover_switching']) ? $neighbor_settings['discover_switching'] : '',
+				'default'       => '',
 				'form_id'       => false
 			];
 
@@ -580,8 +580,8 @@ function neighbor_config_form() {
 				'method'        => 'checkbox',
 				'friendly_name' => __('Interface Descriptions', 'neighbor'),
 				'description'   => __('Discover neighbors by parsing interface descriptions', 'neighbor'),
-				'value'         => isset($neighbor_settings['discover_ifalias']) ? $neighbor_settings['discover_ifalias'] : 'on',
-				'default'       => 'on',
+				'value'         => isset($neighbor_settings['discover_ifalias']) ? $neighbor_settings['discover_ifalias'] : '',
+				'default'       => '',
 				'form_id'       => false
 			];
 
@@ -589,8 +589,8 @@ function neighbor_config_form() {
 				'method'        => 'checkbox',
 				'friendly_name' => __('OSPF', 'neighbor'),
 				'description'   => __('Discover OSPF neighbors', 'neighbor'),
-				'value'         => isset($neighbor_settings['discover_ospf']) ? $neighbor_settings['discover_ospf'] : 'on',
-				'default'       => 'on',
+				'value'         => isset($neighbor_settings['discover_ospf']) ? $neighbor_settings['discover_ospf'] : '',
+				'default'       => '',
 				'form_id'       => false
 			];
 
@@ -598,8 +598,8 @@ function neighbor_config_form() {
 				'method'        => 'checkbox',
 				'friendly_name' => __('BGP', 'neighbor'),
 				'description'   => __('Discover BGP neighbors', 'neighbor'),
-				'value'         => isset($neighbor_settings['discover_bgp']) ? $neighbor_settings['discover_bgp'] : 'on',
-				'default'       => 'on',
+				'value'         => isset($neighbor_settings['discover_bgp']) ? $neighbor_settings['discover_bgp'] : '',
+				'default'       => '',
 				'form_id'       => false
 			];
 
@@ -607,8 +607,8 @@ function neighbor_config_form() {
 				'method'        => 'checkbox',
 				'friendly_name' => __('IS-IS', 'neighbor'),
 				'description'   => __('Discover IS-IS neighbors', 'neighbor'),
-				'value'         => isset($neighbor_settings['discover_isis']) ? $neighbor_settings['discover_isis'] : 'on',
-				'default'       => 'on',
+				'value'         => isset($neighbor_settings['discover_isis']) ? $neighbor_settings['discover_isis'] : '',
+				'default'       => '',
 				'form_id'       => false
 			];
 		}
