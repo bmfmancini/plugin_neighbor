@@ -1927,6 +1927,7 @@ function display_interface_map($rule_id = 1) {
 	printf("<script type='text/javascript' src='%s'></script>",'js/map_state.js');
 	printf("<script type='text/javascript' src='%s'></script>",'js/map_filters.js');
 	printf("<script type='text/javascript' src='%s'></script>",'js/map_api.js');
+	printf("<script type='text/javascript' src='%s'></script>",'js/map_render.js');
 	printf("<script type='text/javascript' src='%s'></script>",'js/map.js');
 
 	// Print the div to hold the map in
