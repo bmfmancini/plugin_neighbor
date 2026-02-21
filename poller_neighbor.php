@@ -242,7 +242,9 @@ function discoverHost($hostId) {
 			debug("Process Lock ID: $key");
 		}
 
-		db_execute_prepared('REPLACE INTO plugin_neighbor_processes (pid, taskid) VALUES (?,?)',[$key, 0]);
+		if ($key !== '' && $key !== null) {
+			db_execute_prepared('REPLACE INTO plugin_neighbor_processes (pid, taskid) VALUES (?,?)', [$key, 0]);
+		}
 
 		debug(str_repeat('-', 85));
 
@@ -262,8 +264,10 @@ function discoverHost($hostId) {
 
 		// $statsJson = json_encode($stats);
 		// remove the process lock
-		db_execute_prepared('DELETE FROM plugin_neighbor_processes
-			WHERE pid=?', [$key]);
+		if ($key !== '' && $key !== null) {
+			db_execute_prepared('DELETE FROM plugin_neighbor_processes
+				WHERE pid=?', [$key]);
+		}
 
 		db_execute_prepared('REPLACE INTO settings
 			(name,value)
@@ -486,7 +490,7 @@ function discoverIpNeighbors($host) {
  * @return void
  */
 function processHosts() {
-	global $start, $seed, $verbose, $debug, $dieNow, $config;
+	global $start, $seed, $key, $verbose, $debug, $dieNow, $config;
 	global $database_hostname, $database_username, $database_password, $database_default, $database_type, $database_port;
 
 	debug(str_repeat('-', 85));
@@ -565,7 +569,7 @@ function processHosts() {
 							db_close();
 							db_connect_real($database_hostname, $database_username, $database_password, $database_default, $database_type, $database_port);
 
-							$key = rand();
+							$key = (int) $host['host_id'];
 							// Only use DB tracking for visual status, not process control
 							db_execute_prepared('INSERT INTO plugin_neighbor_processes (pid, taskid, started) VALUES (?,?, NOW())', [$key, $seed]);
 
@@ -590,7 +594,7 @@ function processHosts() {
 					$processes = db_fetch_cell('SELECT COUNT(*) as num_proc FROM plugin_neighbor_processes');
 
 					if ($processes < $concurrentProcesses) {
-						$key = rand();
+						$key = (int) $host['host_id'];
 						db_execute_prepared('INSERT INTO plugin_neighbor_processes (pid, taskid, started) VALUES (?,?, NOW())',[$key, $seed]);
 						debug("INFO: Launching Background Shell for: '" . $host['description'] . "'");
 						processHost($host['host_id'], $seed, $key);

@@ -113,9 +113,17 @@ function display_neighbors() {
 	print "<form>\n";
 	print "<input type='hidden' id='table' value='xdp'>\n";
 	print "</form>\n";
-	printf("<link rel='stylesheet' type='text/css' href='%s'>\n", $config['url_path'] . 'plugins/neighbor/css/ionicons.min.css');
-	printf("<script type='text/javascript' src='%s'></script>\n", $config['url_path'] . 'plugins/neighbor/js/tables_interface.js');
-	printf("<script type='text/javascript' src='%s'></script>\n", $config['url_path'] . 'plugins/neighbor/js/tables_' . $neighbor_type . '.js');
+	$css_rel_path = 'plugins/neighbor/css/ionicons.min.css';
+	$js_common    = 'plugins/neighbor/js/tables_interface.js';
+	$js_type      = 'plugins/neighbor/js/tables_' . $neighbor_type . '.js';
+
+	$css_ver = file_exists($config['base_path'] . '/' . $css_rel_path) ? filemtime($config['base_path'] . '/' . $css_rel_path) : time();
+	$js_common_ver = file_exists($config['base_path'] . '/' . $js_common) ? filemtime($config['base_path'] . '/' . $js_common) : time();
+	$js_type_ver = file_exists($config['base_path'] . '/' . $js_type) ? filemtime($config['base_path'] . '/' . $js_type) : time();
+
+	printf("<link rel='stylesheet' type='text/css' href='%s?v=%d'>\n", $config['url_path'] . $css_rel_path, $css_ver);
+	printf("<script type='text/javascript' src='%s?v=%d'></script>\n", $config['url_path'] . $js_common, $js_common_ver);
+	printf("<script type='text/javascript' src='%s?v=%d'></script>\n", $config['url_path'] . $js_type, $js_type_ver);
 }
 
 /**

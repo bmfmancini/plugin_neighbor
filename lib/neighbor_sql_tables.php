@@ -663,20 +663,31 @@ function neighbor_save_host_settings($host_id, $settings) {
  * @return bool   True if enabled, false otherwise
  */
 function neighbor_host_discovery_enabled($host, $field) {
+	$normalized_field = $field;
+
+	if (strpos($normalized_field, 'neighbor_') === 0) {
+		$normalized_field = substr($normalized_field, 9);
+	}
+
+	if ($normalized_field === 'discover_enable') {
+		$normalized_field = 'enabled';
+	}
+
 	// If host is an array with the old column names from host table
 	if (is_array($host)) {
 		$host_id = isset($host['id']) ? $host['id'] : 0;
 
-		// Check for old-style field names (neighbor_discover_*)
-		$old_field = 'neighbor_' . $field;
+		$field_candidates = [
+			$field,
+			'neighbor_' . $field,
+			$normalized_field,
+			'neighbor_' . $normalized_field,
+		];
 
-		if (array_key_exists($old_field, $host)) {
-			return !empty($host[$old_field]) && $host[$old_field] != 'off';
-		}
-
-		// Check for new-style field names
-		if (array_key_exists($field, $host)) {
-			return !empty($host[$field]) && $host[$field] != 'off';
+		foreach (array_unique($field_candidates) as $candidate) {
+			if (array_key_exists($candidate, $host)) {
+				return !empty($host[$candidate]) && $host[$candidate] != 'off';
+			}
 		}
 	} else {
 		$host_id = $host;
@@ -685,6 +696,10 @@ function neighbor_host_discovery_enabled($host, $field) {
 	// Fetch from new table
 	if ($host_id > 0) {
 		$settings = neighbor_get_host_settings($host_id);
+
+		if (isset($settings[$normalized_field])) {
+			return $settings[$normalized_field] == 'on';
+		}
 
 		if (isset($settings[$field])) {
 			return $settings[$field] == 'on';
