@@ -1916,19 +1916,21 @@ function log_scale($value, $min = 1, $max = 4, $min_v = 1, $max_v = 4) {
 }
 
 function display_interface_map($rule_id = 1) {
+	global $config;
+
 	$rule_id = $rule_id ? $rule_id : (isset_request_var('rule_id') ? get_request_var('rule_id') : '');
 	$user_id = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : 0;
 
 	// Toolbar with map options
 	print "<div id='neighbor_map_toolbar'></div>\n";
 	// Load the d3.js library
-	printf("<script type='text/javascript' src='%s'></script>",'js/d3.v7.min.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/moment.min.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map_state.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map_filters.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map_api.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map_render.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/map.js');
+	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/d3.v7.min.js');
+	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/moment.min.js');
+	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/map_state.js');
+	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/map_filters.js');
+	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/map_api.js');
+	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/map_render.js');
+	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/map.js');
 
 	// Print the div to hold the map in
 	print "<form><input type='hidden' id='rule_id' name='rule_id' value='$rule_id'></form>\n";

@@ -404,17 +404,32 @@ function handleEdgeClick(event, d) {
 					"' value_min='" + data.value_min +
 					"' value_max='" + data.value_max + "'>";
 
-					let tooltipRef = null;
-					const tooltip = $("div.tooltip_" + edgeId).dxTooltip({
-						target: "div." + edgeId,
-						position: "right",
-						closeOnOutsideClick: () => tooltipRef && tooltipRef.hide(),
-						contentTemplate: (contentData) => contentData.html(template)
-					}).dxTooltip("instance");
-					tooltipRef = tooltip;
+				const tooltipContainer = $("div.tooltip_" + edgeId);
+				tooltipContainer.html(
+					"<div style='background:#fff;border:1px solid #bbb;padding:6px;box-shadow:0 3px 12px rgba(0,0,0,0.25);'>" +
+					template +
+					"</div>"
+				);
+				tooltipContainer.css({ display: "block" });
+
+				const tooltip = {
+					hide: function() {
+						tooltipContainer.hide();
+					},
+					dispose: function() {
+						tooltipContainer.closest("div." + edgeId).remove();
+					}
+				};
+
+				$(document).off("mousedown.neighborTooltip" + edgeId).on("mousedown.neighborTooltip" + edgeId, function(ev) {
+					if (!$(ev.target).closest("div." + edgeId).length) {
+						tooltip.dispose();
+						delete tooltips[edgeId];
+						$(document).off("mousedown.neighborTooltip" + edgeId);
+					}
+				});
 
 				tooltips[edgeId] = tooltip;
-				tooltip.show();
 			}
 		});
 	}
@@ -490,6 +505,7 @@ function hideTooltips() {
 	Object.keys(tooltips).forEach(key => {
 		if (tooltips[key]) {
 			tooltips[key].dispose();
+			$(document).off("mousedown.neighborTooltip" + key);
 			delete tooltips[key];
 		}
 	});
