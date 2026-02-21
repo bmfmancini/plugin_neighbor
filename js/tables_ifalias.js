@@ -24,7 +24,7 @@ $(document).ready(function() {
 			], data);
 		},
 		error: function() {
-			$('#xdp_neighbors_holder').html("<div style='padding:10px;color:#b94a48;'>Failed to load neighbor data.</div>");
+			$('#xdp_neighbors_holder').html("<div class='neighbor-error'>Failed to load neighbor data.</div>");
 		}
 	});
 });

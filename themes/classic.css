@@ -1,31 +1,28 @@
-/*
- +-------------------------------------------------------------------------+
- | Copyright (C) 2004-2025 The Cacti Group                                 |
- |                                                                         |
- | This program is free software; you can redistribute it and/or           |
- | modify it under the terms of the GNU General Public License             |
- | as published by the Free Software Foundation; either version 2          |
- | of the License, or (at your option) any later version.                  |
- |                                                                         |
- | This program is distributed in the hope that it will be useful,         |
- | but WITHOUT ANY WARRANTY; without even the implied warranty of          |
- | MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           |
- | GNU General Public License for more details.                            |
- +-------------------------------------------------------------------------+
- | Cacti: The Complete RRDtool-based Graphing Solution                     |
- +-------------------------------------------------------------------------+
- | This code is designed, written, and maintained by the Cacti Group. See  |
- | about.php and/or the AUTHORS file for specific developer information.   |
- +-------------------------------------------------------------------------+
- | http://www.cacti.net/                                                   |
- +-------------------------------------------------------------------------+
-*/
-
-.panel_header	{
-    color: white;
-}
-
-.panel-link {
-	padding-left: 2px;
-	padding-right: 2px;
+/* Neighbor theme: classic */
+:root {
+	--neighbor-panel-bg: #f4f4f4;
+	--neighbor-panel-border: #67864a;
+	--neighbor-title-bg: linear-gradient(#2f5a1a, #1d3e10);
+	--neighbor-title-color: #fff;
+	--neighbor-title-border: #214613;
+	--neighbor-control-bg: #ececec;
+	--neighbor-btn-bg: #f8f8f8;
+	--neighbor-btn-color: #222;
+	--neighbor-btn-border: #8a8a8a;
+	--neighbor-primary-bg: linear-gradient(#3f6d24, #214613);
+	--neighbor-primary-color: #fff;
+	--neighbor-primary-border: #214613;
+	--neighbor-tab-bg: #f4f4f4;
+	--neighbor-tab-color: #333;
+	--neighbor-tab-border: #ccc;
+	--neighbor-tab-active-bg: #2d6cdf;
+	--neighbor-tab-active-color: #fff;
+	--neighbor-tab-active-border: #2d6cdf;
+	--neighbor-table-wrap-border: #ddd;
+	--neighbor-table-head-bg: #f5f5f5;
+	--neighbor-table-head-color: #333;
+	--neighbor-table-head-border: #ddd;
+	--neighbor-table-cell-color: #333;
+	--neighbor-table-row-border: #eee;
+	--neighbor-muted: 0.88;
 }
