@@ -1,3 +1,6 @@
+/* eslint-disable no-var */
+/* exported runNeighborMapSmokeChecks */
+
 // Neighbor map shared state
 // Loaded before js/map.js.
 

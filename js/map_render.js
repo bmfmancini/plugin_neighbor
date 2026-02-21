@@ -1,3 +1,5 @@
+/* exported processEdgeData, createVisualization, startLiveUpdates, stopLiveUpdates */
+
 // Neighbor map rendering and simulation helpers
 // Loaded before js/map.js.
 
@@ -5,8 +7,6 @@
 function createLightningBolt(x1, y1, x2, y2, segments = 8) {
 	const dx = x2 - x1;
 	const dy = y2 - y1;
-	const distance = Math.sqrt(dx * dx + dy * dy);
-	const segmentLength = distance / segments;
 
 	let path = `M ${x1} ${y1}`;
 

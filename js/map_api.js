@@ -1,3 +1,5 @@
+/* exported neighborMapSaveOptions, neighborMapResetOptions, neighborMapFetchTopology */
+
 // Neighbor map API helpers
 // Loaded before js/map.js.
 

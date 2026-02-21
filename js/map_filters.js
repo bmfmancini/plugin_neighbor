@@ -1,3 +1,5 @@
+/* exported filterEdges, reindexArray */
+
 // Neighbor map filtering helpers
 // Loaded before js/map.js.
 

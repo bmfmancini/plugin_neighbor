@@ -1,10 +1,13 @@
+/* eslint-disable no-var */
+/* exported mapToolbar, selectBox, rule_id, user_id, ruleDropdown */
+
 // Called by neighbor.php
 
 var mapList = [];
 var mapToolbar;
 var selectBox;
 var rule_id = 1;
-var	user_id;
+var user_id;
 
 // Get the list of maps from AJAX
 var ruleDropdown = function() {
@@ -26,7 +29,7 @@ $(document).ready(function() {
 	rule_id = $("#rule_id").val();
 	user_id = $("#user_id").val();
 
-	var tabs = [
+	const tabs = [
 		{     
 		    id: 0,
 		    text: "Maps", 
@@ -49,7 +52,7 @@ $(document).ready(function() {
 	
 	// Main dxTabs row
 	
-	var tabSelected = $("#tab_selected").length > 0 ? $("#tab_selected") : 0;
+	const tabSelected = $("#tab_selected").length > 0 ? $("#tab_selected") : 0;
 	
 	// Tabs
 	$("#neighbor_tabs").dxTabs({
@@ -57,7 +60,7 @@ $(document).ready(function() {
 		width: "99%",
 		selectedIndex: tabSelected,
 		onItemClick: function(e) {
-			var redirectUrl = 'neighbor.php?action=' + e.itemData.content;
+			const redirectUrl = 'neighbor.php?action=' + e.itemData.content;
 			window.location.href = redirectUrl;
 		}
 	});
@@ -84,7 +87,7 @@ $(document).ready(function() {
 						displayExpr: "name",
 						valueExpr: "id",
 						itemTemplate: function(data) {
-							var icon = data.neighbor_type == 'interface' ? 'fa fa-link' : 'fa fa-cloud';
+							const icon = data.neighbor_type === 'interface' ? 'fa fa-link' : 'fa fa-cloud';
 							return "<div class='custom-item'><span class='"+icon+"' style='padding-right: 5px'></span>"+ data.name +"</div>";
 						},
 						onValueChanged: function(e){
@@ -110,21 +113,21 @@ $(document).ready(function() {
 						value: [],
 						multiple: true,
 						onInitialized: function(e) {
-							var comp = e.component;
+							const comp = e.component;
 							$.ajax({
 								method: 'GET',
 								url: 'ajax.php?action=ajax_neighbor_hosts&format=jsonp',
 								dataType: 'jsonp',
 								success: function(resp) {
-									var items = resp.Response?.[0] || [];
+									const items = resp.Response?.[0] || [];
 									comp.option('items', items);
 								}
 							});
 						},
 						onValueChanged: function(e) {
 							// normalize value to an array (DevExpress may provide single value or array)
-							var raw = e.value;
-							var vals = Array.isArray(raw) ? raw : (raw == null ? [] : [raw]);
+							const raw = e.value;
+							const vals = Array.isArray(raw) ? raw : (raw === null || raw === undefined ? [] : [raw]);
 							mapOptions.selectedHosts = vals.map(function(v){
 								if (v && typeof v === 'object') {
 									return (v.id !== undefined) ? v.id : (v.value !== undefined ? v.value : null);
@@ -175,7 +178,7 @@ $(document).ready(function() {
 					locateInMenu: 'always',
 					text: 'Reset',
 					onClick: function() {
-						 var result = DevExpress.ui.dialog.confirm("Are you sure?", "Reset map to default");
+						 const result = DevExpress.ui.dialog.confirm("Are you sure?", "Reset map to default");
 						result.done(function (dialogResult) {
 						if (dialogResult) {
 							resetMap();
@@ -191,7 +194,7 @@ $(document).ready(function() {
 					text: 'Seed',
 					onClick: function() {
 						// guard against missing network.getSeed (map may not expose it)
-						var seed = null;
+						let seed = null;
 						if (typeof network !== 'undefined' && typeof network.getSeed === 'function') {
 							seed = network.getSeed();
 						} else if (typeof mapOptions !== 'undefined' && mapOptions.seed) {

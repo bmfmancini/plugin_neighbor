@@ -1,4 +1,6 @@
 
+/* exported updateLastSeen, storeCoords, resetMap, drawMap */
+
 // D3.js Network Topology Visualization
 // Displays physical devices with router images and logical connections with lightning bolts
 // Shared state is initialized in js/map_state.js.
@@ -19,13 +21,6 @@ if (typeof window.routerSymbol === 'undefined') {
 `;
 }
 
-
-function filterHosts(e) {
-	const value = e.component.option('value');
-	mapOptions.hostFilter = value;
-	mapOptions.ajax = false;
-	drawMap();
-}
 
 function updateLastSeen(e) {
 	const value = e.component.option('value');
