@@ -1,6 +1,6 @@
 $(document).ready(function() {
 	
-	var table = $("#table").val(); 	// Which table are we getting
+	const table = $("#table").val(); 	// Which table are we getting
 	console.log("Generating dxDataGrid for table:",table);
 	
 	$.ajax({
@@ -13,8 +13,8 @@ $(document).ready(function() {
 		dataType: "jsonp",
 		success: function( response ) {
 			// Build the dxDataGrid with the response
-			var data = (response && response.Response && response.Response[0]) ? response.Response[0] : [];
-			var dataGrid = $("#xdp_neighbors_holder").dxDataGrid({
+			const data = (response && response.Response && response.Response[0]) ? response.Response[0] : [];
+			$("#xdp_neighbors_holder").dxDataGrid({
 				dataSource: data,
 				columnsAutoWidth: true,
 				width: '99%',
@@ -78,8 +78,6 @@ $(document).ready(function() {
 					},
 				],
 				onToolbarPreparing: function(e) {
-					var dataGrid = e.component;
-			
 					e.toolbarOptions.items.unshift(
 					{
 						location: "before",
@@ -98,7 +96,7 @@ $(document).ready(function() {
 								return "<div class='custom-item'><span class='"+ data.icon +"' style='padding-right: 5px'></span>"+ data.name +"</div>";
 							},
 							onValueChanged: function(e){
-								var value = e.value;
+								const value = e.value;
 								window.location.replace("neighbor.php?action=neighbor_interface&neighbor_type="+value);	
 							},
 							onInitialized: function(e) {                 
