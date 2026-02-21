@@ -1,15 +1,14 @@
 .neighbor-banner {
-	border: 1px solid #67864a;
+	border: 1px solid rgba(127, 127, 127, 0.45);
 	margin: 8px 0 12px;
-	background: #f4f4f4;
+	background: inherit;
 }
 
 .neighbor-banner-title {
-	background: linear-gradient(#2f5a1a, #1d3e10);
-	color: #fff;
-	font-weight: 600;
-	padding: 4px 8px;
+	font-weight: 700;
+	padding: 6px 8px;
 	font-size: 14px;
+	border-bottom: 1px solid rgba(127, 127, 127, 0.35);
 }
 
 .neighbor-banner-controls {
@@ -18,7 +17,6 @@
 	gap: 8px;
 	align-items: center;
 	padding: 8px;
-	background: #ececec;
 }
 
 .neighbor-banner-controls label {
@@ -36,14 +34,91 @@
 .neighbor-banner-controls button {
 	min-height: 28px;
 	padding: 4px 12px;
-	border: 1px solid #8a8a8a;
-	background: #f8f8f8;
+	border: 1px solid rgba(127, 127, 127, 0.65);
+	background: inherit;
 	border-radius: 3px;
 	cursor: pointer;
 }
 
 .neighbor-banner-controls button.neighbor-btn-primary {
-	background: linear-gradient(#3f6d24, #214613);
-	border-color: #214613;
-	color: #fff;
+	font-weight: 600;
+}
+
+.neighbor-table-controls {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 12px;
+	margin: 8px 0 10px;
+}
+
+.neighbor-table-count {
+	opacity: 0.9;
+}
+
+.neighbor-table-wrap {
+	overflow: auto;
+	border: 1px solid rgba(127, 127, 127, 0.35);
+}
+
+#neighbor_table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.neighbor-table-head {
+	cursor: pointer;
+	white-space: nowrap;
+	padding: 6px 8px;
+	text-align: left;
+}
+
+.neighbor-table-cell {
+	padding: 6px 8px;
+	border-top: 1px solid rgba(127, 127, 127, 0.2);
+	white-space: nowrap;
+}
+
+.neighbor-empty {
+	padding: 10px;
+	text-align: center;
+	opacity: 0.8;
+}
+
+.neighbor-error {
+	padding: 10px;
+	color: #b94a48;
+}
+
+.neighbor-routing-summary {
+	padding: 20px;
+	text-align: center;
+}
+
+.neighbor-routing-list {
+	text-align: left;
+	display: inline-block;
+}
+
+.neighbor-tabs {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	padding: 8px 0;
+}
+
+.neighbor-tab {
+	border: 1px solid rgba(127, 127, 127, 0.65);
+	padding: 6px 10px;
+	border-radius: 4px;
+	cursor: pointer;
+	background: inherit;
+}
+
+.neighbor-tab.is-active {
+	font-weight: 700;
+}
+
+.neighbor-tab-icon {
+	padding-right: 5px;
 }

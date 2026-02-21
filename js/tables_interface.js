@@ -224,14 +224,14 @@
 		};
 
 		holder.innerHTML = [
-			"<div class='neighbor-table-controls' style='display:flex;justify-content:flex-end;align-items:center;gap:12px;margin:8px 0 10px;'>",
-			"<span id='neighbor_table_count' style='color:#666;'></span>",
+			"<div class='neighbor-table-controls'>",
+			"<span id='neighbor_table_count' class='neighbor-table-count'></span>",
 			"</div>",
-			"<div style='overflow:auto;border:1px solid #ddd;'>",
-			"<table id='neighbor_table' class='cactiTable' style='width:100%;border-collapse:collapse;'>",
+			"<div class='neighbor-table-wrap'>",
+			"<table id='neighbor_table' class='cactiTable'>",
 			"<thead><tr>",
 			columns.map(function(column) {
-				return "<th data-field='" + escapeHtml(column.dataField) + "' style='cursor:pointer;white-space:nowrap;padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;background:#f5f5f5;'>" +
+				return "<th data-field='" + escapeHtml(column.dataField) + "' class='neighbor-table-head'>" +
 					escapeHtml(column.caption) +
 				"</th>";
 			}).join(''),
@@ -347,7 +347,7 @@
 			}
 
 			if (!filtered.length) {
-				tbody.innerHTML = "<tr><td colspan='" + columns.length + "' style='padding:10px;color:#666;text-align:center;'>No rows found</td></tr>";
+				tbody.innerHTML = "<tr><td colspan='" + columns.length + "' class='neighbor-empty'>No rows found</td></tr>";
 				return;
 			}
 
@@ -355,7 +355,7 @@
 				return '<tr>' + columns.map(function(column) {
 					const raw = row ? row[column.dataField] : '';
 					const value = (typeof column.formatter === 'function') ? column.formatter(raw, row) : raw;
-					return "<td style='padding:6px 8px;border-top:1px solid #eee;white-space:nowrap;'>" +
+					return "<td class='neighbor-table-cell'>" +
 						escapeHtml(value === null || value === undefined ? '' : value) +
 					"</td>";
 				}).join('') + '</tr>';
