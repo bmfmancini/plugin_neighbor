@@ -70,6 +70,36 @@ function plugin_neighbor_install() {
  * @return void
  */
 function plugin_neighbor_uninstall() {
+	// Remove plugin settings (global + runtime markers) from Cacti settings tables.
+	$setting_names = [
+		'neighbor_global_enabled',
+		'neighbor_global_discover_cdp',
+		'neighbor_global_discover_lldp',
+		'neighbor_global_discover_ip',
+		'neighbor_global_discover_switching',
+		'neighbor_global_discover_ifalias',
+		'neighbor_global_discover_ospf',
+		'neighbor_global_discover_bgp',
+		'neighbor_global_discover_isis',
+		'neighbor_global_subnet_correlation',
+		'neighbor_global_poller_processes',
+		'neighbor_global_autodiscovery_freq',
+		'neighbor_global_deadtimer',
+		'neighbor_poller_process_timeout',
+		'neighbor_data_retention',
+		'plugin_neighbor_last_run',
+		'plugin_neighbor_autodiscovery_lastrun',
+	];
+
+	foreach ($setting_names as $name) {
+		db_execute_prepared('DELETE FROM settings WHERE name = ?', [$name]);
+		db_execute_prepared('DELETE FROM settings_user WHERE name = ?', [$name]);
+	}
+
+	// Remove any additional plugin runtime keys that may exist from prior versions.
+	db_execute("DELETE FROM settings WHERE name LIKE 'plugin_neighbor_%'");
+	db_execute("DELETE FROM settings_user WHERE name LIKE 'plugin_neighbor_%'");
+
 	// Drop all plugin tables
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_xdp`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_ipv4`');
