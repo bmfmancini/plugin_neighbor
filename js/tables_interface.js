@@ -111,6 +111,11 @@
 			close: emitSelection
 		});
 
+		const $button = $select.next('button.ui-multiselect');
+		if ($button.length) {
+			$button.addClass('ui-multiselect ui-widget ui-state-default ui-corner-all ui-state-active');
+		}
+
 		if (typeof $.fn.multiselectfilter === 'function') {
 			$select.multiselectfilter({
 				label: 'Search',
@@ -134,7 +139,7 @@
 			"<label for='neighbor_table_search'><strong>Search</strong></label>",
 			"<input id='neighbor_table_search' type='search' placeholder='Enter a regular expression' style='min-width:260px;'>",
 			"<label for='neighbor_type_select'><strong>Type</strong></label>",
-			"<select id='neighbor_type_select' style='min-width:260px;padding:4px;'>",
+			"<select id='neighbor_type_select' class='ui-selectmenu-text' style='min-width:260px;padding:4px;'>",
 			NEIGHBOR_TYPES.map(function(type) {
 				const selectedAttr = type.value === selected ? ' selected' : '';
 				return "<option value='" + escapeHtml(type.value) + "'" + selectedAttr + ">" +
