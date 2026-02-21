@@ -286,23 +286,25 @@ var drawMap = function() {
 				}
 			}
 		});
-	} else {
-		// Use cached data for filtering
-		var nodes = mapOptions.ajaxNodes.slice();
-		var edges = mapOptions.ajaxEdges.slice();
+		} else {
+			// Use cached data for filtering
+			var nodes = Array.isArray(mapOptions.ajaxNodes) ? mapOptions.ajaxNodes.slice() : [];
+			var edges = Array.isArray(mapOptions.ajaxEdges) ? mapOptions.ajaxEdges.slice() : [];
 
-		var filtered = filterEdges(nodes, edges);
-		nodes = filtered.nodes;
-		edges = filtered.edges;
+			var filtered = filterEdges(nodes, edges);
+			nodes = filtered.nodes;
+			edges = filtered.edges;
 
-		var physicalEdges = edges.filter(e => e.type === 'physical');
-		var logicalEdges = edges.filter(e => e.type === 'logical');
+			var physicalEdges = edges.filter(e => e.type === 'physical');
+			var logicalEdges = edges.filter(e => e.type === 'logical');
 
-		nodesData = reindexArray(nodes);
-		edgesData = reindexArray(edges);
+			nodesData = reindexArray(nodes);
+			edgesData = reindexArray(edges);
 
+			createVisualization(container, nodesData, physicalEdges, logicalEdges, physics);
+
+		}
 	}
-}
 
 // Process edge data and add types/colors
 function processEdgeData(edges) {

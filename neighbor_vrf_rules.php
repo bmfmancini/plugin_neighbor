@@ -343,7 +343,7 @@ function neighbor_vrf_rules_item_movedown() {
 	// ====================================================
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		move_item_down('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_down('plugin_neighbor_vrf_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
 		move_item_down('plugin_neighbor_vrf_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
@@ -357,7 +357,7 @@ function neighbor_vrf_rules_item_moveup() {
 	// ====================================================
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		move_item_up('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_up('plugin_neighbor_vrf_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
 		move_item_up('plugin_neighbor_vrf_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
@@ -370,7 +370,7 @@ function neighbor_vrf_rules_item_remove() {
 	// ====================================================
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		db_execute_prepared('DELETE FROM plugin_neighbor_match_rule_items WHERE id = ?', [get_request_var('item_id')]);
+		db_execute_prepared('DELETE FROM plugin_neighbor_vrf_match_rule_items WHERE id = ?', [get_request_var('item_id')]);
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
 		db_execute_prepared('DELETE FROM plugin_neighbor_vrf_rule_items WHERE id = ?', [get_request_var('item_id')]);
 	}
@@ -1159,7 +1159,7 @@ function neighbor_global_vrf_item_edit($rule_id, $rule_item_id, $rule_type) {
 
 			break;
 		case AUTOMATION_RULE_TYPE_TREE_MATCH:
-			$item_table             = 'plugin_neighbor_match_rule_items';
+			$item_table             = 'plugin_neighbor_vrf_match_rule_items';
 			$sql_and                = ' AND rule_type=' . $rule_type;
 			$neighbor_rule          = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_tree_rules WHERE id = ?', [$rule_id]);
 			$_fields_rule_item_edit = $fields_neighbor_match_rule_item_edit;
@@ -1433,11 +1433,12 @@ function neighbor_display_vrf_matching_hosts($rule, $rule_type, $url) {
 	html_end_box();
 
 	// form the 'where' clause for our main sql query
-	if (get_request_var('filterd') != '') {
-		$sql_where = "WHERE (h.hostname LIKE '%" . get_request_var('filterd') . "%' OR h.description LIKE '%" . get_request_var('filterd') . "%' OR ht.name LIKE '%" . get_request_var('filterd') . "%')";
-	} else {
-		$sql_where = '';
-	}
+		if (get_request_var('filterd') != '') {
+			$filter_qs = db_qstr('%' . get_request_var('filterd') . '%');
+			$sql_where = "WHERE (h.hostname LIKE $filter_qs OR h.description LIKE $filter_qs OR ht.name LIKE $filter_qs)";
+		} else {
+			$sql_where = '';
+		}
 
 	if (get_request_var('host_status') == '-1') {
 		// Show all items
@@ -1482,15 +1483,21 @@ function neighbor_display_vrf_matching_hosts($rule, $rule_type, $url) {
 	$rows_query = $sql_query . $sql_where . $sql_filter;
 	$total_rows = count((array) db_fetch_assoc($rows_query, false));
 
-	$sortby = get_request_var('sort_column');
+		$allowed_sort_columns = ['description', 'hostname', 'status', 'host_template_name', 'id'];
+		$sortby               = get_request_var('sort_column');
+		$sort_direction       = strtoupper((string) get_request_var('sort_direction')) === 'DESC' ? 'DESC' : 'ASC';
 
-	if ($sortby == 'hostname') {
-		$sortby = 'INET_ATON(hostname)';
-	}
+		if (!in_array($sortby, $allowed_sort_columns, true)) {
+			$sortby = 'description';
+		}
 
-	$sql_query = $rows_query .
-		' ORDER BY ' . $sortby . ' ' . get_request_var('sort_direction') .
-		' LIMIT ' . ($rows * (get_request_var('paged') - 1)) . ',' . $rows;
+		if ($sortby == 'hostname') {
+			$sortby = 'INET_ATON(hostname)';
+		}
+
+		$sql_query = $rows_query .
+			' ORDER BY ' . $sortby . ' ' . $sort_direction .
+			' LIMIT ' . ($rows * (get_request_var('paged') - 1)) . ',' . $rows;
 	$hosts = db_fetch_assoc($sql_query, false);
 
 	$nav = html_nav_bar($url, MAX_DISPLAY_PAGES, get_request_var('paged'), $rows, $total_rows, 7, 'Devices', 'paged', 'main');
@@ -1686,7 +1693,7 @@ function neighbor_display_vrf_object_matches($rule, $url) {
 	$total_rows = isset($total_rows) ? $total_rows : 0;
 
 	$sort_column    = get_request_var('sort_column') ? get_request_var('sort_column') : '';
-	$sort_direction = get_request_var('sort_direction') ? get_request_var('sort_direction') : 'ASC';
+	$sort_direction = strtoupper((string) (get_request_var('sort_direction') ? get_request_var('sort_direction') : 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
 	$rule_id        = isset($rule['id']) ? $rule['id'] : '';
 
 	html_start_box(__('Matching Objects [ %s ]', htmlspecialchars($name, ENT_QUOTES)) . display_tooltip(__('A blue font color indicates that the rule will be applied to the objects in question.  Other objects will not be subject to the rule.')), '100%', '', '3', 'center', '');
@@ -1701,9 +1708,11 @@ function neighbor_display_vrf_object_matches($rule, $url) {
 
 	$rule_options = isset($rule['neighbor_options']) ? $rule['neighbor_options'] : '';
 
-	if ($rule_options && $sort_column && !($sort_column == 'type' || $sort_column == 'interface_status')) {
-		$sql_order = "ORDER by $sort_column $sort_direction";
-	} elseif ($rule_options && $sort_column && ($sort_column == 'type' || $sort_column == 'interface_status')) {
+	if (!preg_match('/^[A-Za-z0-9_\\.]+$/', (string) $sort_column)) {
+		$sort_column = '';
+	}
+
+	if ($rule_options && $sort_column) {
 		$sql_order = "ORDER by $sort_column $sort_direction";
 	}
 

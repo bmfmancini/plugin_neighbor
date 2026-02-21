@@ -331,9 +331,9 @@ function neighbor_graph_rules_item_movedown() {
 	// ====================================================
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		move_item_down('neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_down('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
-		move_item_down('neighbor_graph_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
+		move_item_down('plugin_neighbor_graph_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
 }
 
@@ -345,9 +345,9 @@ function neighbor_graph_rules_item_moveup() {
 	// ====================================================
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_MATCH) {
-		move_item_up('neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_up('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_GRAPH_ACTION) {
-		move_item_up('neighbor_graph_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
+		move_item_up('plugin_neighbor_graph_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
 }
 
@@ -848,9 +848,10 @@ function neighbor_graph_rules() {
 
 	// form the 'where' clause for our main sql query
 	if (get_request_var('filter') != '') {
-		$sql_where = "WHERE (agr.name LIKE '%" . get_request_var('filter') . "%' OR " .
-			"sqg.name LIKE '%" . get_request_var('filter') . "%' OR " .
-			"sq.name LIKE '%" . get_request_var('filter') . "%')";
+		$filter_qs = db_qstr('%' . get_request_var('filter') . '%');
+		$sql_where = "WHERE (agr.name LIKE $filter_qs OR " .
+			"sqg.name LIKE $filter_qs OR " .
+			"sq.name LIKE $filter_qs)";
 	} else {
 		$sql_where = '';
 	}

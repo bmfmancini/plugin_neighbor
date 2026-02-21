@@ -478,13 +478,19 @@ function neighbor_get_matching_hosts($rule_id, $rule_type, $sql_where_package, $
 		$total_rows = count((array) db_fetch_assoc($rows_query, false));
 	}
 
-	$sortby = get_request_var('sort_column');
+	$allowed_sort_columns = ['description', 'hostname', 'status', 'host_template_name', 'id'];
+	$sortby               = get_request_var('sort_column');
+	$sort_direction       = strtoupper((string) get_request_var('sort_direction')) === 'DESC' ? 'DESC' : 'ASC';
+
+	if (!in_array($sortby, $allowed_sort_columns, true)) {
+		$sortby = 'description';
+	}
 
 	if ($sortby == 'hostname') {
 		$sortby = 'INET_ATON(hostname)';
 	}
 
-	$sql_query = $rows_query . ' ORDER BY ' . $sortby . ' ' . get_request_var('sort_direction') . ' LIMIT ' . ($rows * ($page - 1)) . ',' . $rows;
+	$sql_query = $rows_query . ' ORDER BY ' . $sortby . ' ' . $sort_direction . ' LIMIT ' . ($rows * ($page - 1)) . ',' . $rows;
 
 	if (count($where_params) > 0) {
 		$hosts = db_fetch_assoc_prepared($sql_query, $where_params);
@@ -814,14 +820,20 @@ function neighbor_display_matching_hosts($rule, $rule_type, $url) {
 		$total_rows = count((array) db_fetch_assoc($rows_query, false));
 	}
 
-	$sortby = get_request_var('sort_column');
+	$allowed_sort_columns = ['description', 'hostname', 'status', 'host_template_name', 'id'];
+	$sortby               = get_request_var('sort_column');
+	$sort_direction       = strtoupper((string) get_request_var('sort_direction')) === 'DESC' ? 'DESC' : 'ASC';
+
+	if (!in_array($sortby, $allowed_sort_columns, true)) {
+		$sortby = 'description';
+	}
 
 	if ($sortby == 'hostname') {
 		$sortby = 'INET_ATON(hostname)';
 	}
 
 	$sql_query = $rows_query .
-		' ORDER BY ' . $sortby . ' ' . get_request_var('sort_direction') .
+		' ORDER BY ' . $sortby . ' ' . $sort_direction .
 		' LIMIT ' . ($rows * (get_request_var('paged') - 1)) . ',' . $rows;
 
 	if (count($where_params) > 0) {

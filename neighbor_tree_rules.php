@@ -323,9 +323,9 @@ function neighbor_tree_rules_item_movedown() {
 	// ====================================================
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_TREE_MATCH) {
-		move_item_down('neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_down('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_TREE_ACTION) {
-		move_item_down('neighbor_tree_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
+		move_item_down('plugin_neighbor_tree_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
 }
 
@@ -337,9 +337,9 @@ function neighbor_tree_rules_item_moveup() {
 	// ====================================================
 
 	if (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_TREE_MATCH) {
-		move_item_up('neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
+		move_item_up('plugin_neighbor_match_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id') . ' AND rule_type=' . get_request_var('rule_type'));
 	} elseif (get_request_var('rule_type') == AUTOMATION_RULE_TYPE_TREE_ACTION) {
-		move_item_up('neighbor_tree_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
+		move_item_up('plugin_neighbor_tree_rule_items', get_request_var('item_id'), 'rule_id=' . get_request_var('id'));
 	}
 }
 
@@ -800,7 +800,8 @@ function neighbor_tree_rules() {
 
 	// form the 'WHERE' clause for our main sql query
 	if (get_request_var('filter') != '') {
-		$sql_where = "WHERE (atr.name LIKE '%%" . get_request_var('filter') . "%%')";
+		$filter_qs = db_qstr('%' . get_request_var('filter') . '%');
+		$sql_where = "WHERE (atr.name LIKE $filter_qs)";
 	} else {
 		$sql_where = '';
 	}
