@@ -31,7 +31,7 @@ function createLightningBolt(x1, y1, x2, y2, segments = 8) {
 // Process edge data and add types/colors
 function processEdgeData(edges) {
 	// Color gradient for utilization
-	var colorArray = generateColor("#ff3300", "#66ff66", 10);
+	const colorArray = generateColor("#ff3300", "#66ff66", 10);
 
 	edges.forEach((edge, i) => {
 		// Convert vis.js format to D3 format — be defensive about incoming shapes
@@ -57,19 +57,19 @@ function processEdgeData(edges) {
 		}
 
 		// Process traffic data for colors — `edge.poller` may be a JSON string from server
-		var pollerData = edge.poller;
+		let pollerData = edge.poller;
 		if (typeof pollerData === 'string') {
 			try { pollerData = JSON.parse(pollerData); } catch (err) { pollerData = {}; }
 		}
 
 		if (pollerData?.traffic_in) {
-			var deltaMax = Math.max(pollerData.traffic_in.delta, pollerData.traffic_out.delta);
+			let deltaMax = Math.max(pollerData.traffic_in.delta, pollerData.traffic_out.delta);
 			deltaMax = parseInt(deltaMax * 8 / 1000 / 1000); // Convert to Mbps
-			var intSpeed = edge.value || 100; // Default 100Mbps if no speed
-			var percUtilised = deltaMax / intSpeed * 100;
-			var colorIndex = Math.min(Math.floor(percUtilised / 10), colorArray.length - 1);
+			const intSpeed = edge.value || 100; // Default 100Mbps if no speed
+			const percUtilised = deltaMax / intSpeed * 100;
+			const colorIndex = Math.min(Math.floor(percUtilised / 10), colorArray.length - 1);
 
-			var color = "#" + colorArray[colorIndex];
+			const color = "#" + colorArray[colorIndex];
 			edge.color = {
 				color: color,
 				highlight: color,
@@ -78,8 +78,8 @@ function processEdgeData(edges) {
 			};
 
 			// Add traffic info to title
-			var delta_in = Number(pollerData.traffic_in.delta * 8 / 1000 / 1000).toFixed(2);
-			var delta_out = Number(pollerData.traffic_out.delta * 8 / 1000 / 1000).toFixed(2);
+			const delta_in = Number(pollerData.traffic_in.delta * 8 / 1000 / 1000).toFixed(2);
+			const delta_out = Number(pollerData.traffic_out.delta * 8 / 1000 / 1000).toFixed(2);
 			edge.title = (edge.title || "") + `<br>Inbound: ${delta_in} Mbps, Outbound: ${delta_out} Mbps`;
 		}
 
@@ -98,14 +98,14 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 	// Determine container size robustly — prefer the element's client size but
 	// expand it to fill the visible viewport area when the parent uses
 	// percentage heights (this prevents nodes being clipped at the bottom).
-	var rect = container.getBoundingClientRect();
-	var clientW = container.clientWidth || 0;
-	var clientH = container.clientHeight || 0;
+	const rect = container.getBoundingClientRect();
+	const clientW = container.clientWidth || 0;
+	const clientH = container.clientHeight || 0;
 
 	// Compute available viewport space below the container's top edge and use it
-	var viewportAvailableH = Math.max(0, window.innerHeight - rect.top - 20); // 20px bottom margin
-	var width  = Math.max(clientW, Math.min(window.innerWidth,  Math.max(800, clientW || 800)));
-	var height = Math.max(clientH, Math.min(viewportAvailableH, Math.max(600, clientH || 600)));
+	const viewportAvailableH = Math.max(0, window.innerHeight - rect.top - 20); // 20px bottom margin
+	let width  = Math.max(clientW, Math.min(window.innerWidth,  Math.max(800, clientW || 800)));
+	let height = Math.max(clientH, Math.min(viewportAvailableH, Math.max(600, clientH || 600)));
 
 	// If the container was using percentage heights and clientH is small, grow it to use viewport space
 	if (clientH < Math.min(600, viewportAvailableH)) {
@@ -120,7 +120,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 	container.style.height = height + "px";
 
 	// Combine all edges for the simulation
-	var allEdges = [...physicalEdges, ...logicalEdges];
+	const allEdges = [...physicalEdges, ...logicalEdges];
 
 	// Ensure all nodes have IDs
 	nodes.forEach((node, i) => {
@@ -130,11 +130,11 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 	});
 
 	// Create SVG with defs
-	var svg = d3.select(container).append("svg")
+	const svg = d3.select(container).append("svg")
 		.attr("width", width)
 		.attr("height", height);
 
-	var defs = svg.append("defs");
+	const defs = svg.append("defs");
 	defs.html(window.routerSymbol);
 
 	// Add zoom behavior
@@ -153,9 +153,9 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 	});
 
 	// Create groups for different layers
-	var physicalLinkGroup = svg.append("g").attr("class", "links-physical");
-	var logicalLinkGroup  = svg.append("g").attr("class", "links-logical");
-	var nodeGroup         = svg.append("g").attr("class", "nodes");
+	const physicalLinkGroup = svg.append("g").attr("class", "links-physical");
+	const logicalLinkGroup  = svg.append("g").attr("class", "links-logical");
+	const nodeGroup         = svg.append("g").attr("class", "nodes");
 
 	// Create force simulation
 	try {
@@ -174,7 +174,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 	}
 
 	// Create physical links (solid lines)
-	var physicalLink = physicalLinkGroup
+	const physicalLink = physicalLinkGroup
 		.selectAll("line")
 		.data(physicalEdges)
 		.enter().append("line")
@@ -184,7 +184,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 		.attr("stroke-linecap", "round");
 
 	// Create logical links (lightning bolts)
-	var logicalLink = logicalLinkGroup
+	const logicalLink = logicalLinkGroup
 		.selectAll("path")
 		.data(logicalEdges)
 		.enter().append("path")
@@ -195,7 +195,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 		.attr("stroke-dasharray", "8,4");
 
 	// Create nodes with router symbols
-	var node = nodeGroup
+	const node = nodeGroup
 		.selectAll("g")
 		.data(nodes)
 		.enter().append("g")
@@ -206,7 +206,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 			.on("end", dragended));
 
 	// Add router symbol to each node — wrap in a <g> so we can scale via transform
-	var iconScale = nodeSize / 24;
+	const iconScale = nodeSize / 24;
 	node.append("g")
 		.attr("class", "node-icon")
 		.attr("transform", `scale(${iconScale})`)
@@ -261,7 +261,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 		width: width,
 		height: height,
 		getPositions: function() {
-			var positions = {};
+			const positions = {};
 			nodes.forEach(n => positions[n.id] = {x: n.x, y: n.y});
 			return positions;
 		},
@@ -279,21 +279,21 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 	};
 
 	// Auto-fit: centres all nodes in the viewport
-	var autoFit = (animated) => {
-		var padding = nodeSize + 60;
-		var xs = nodes.map(n => n.x);
-		var ys = nodes.map(n => n.y);
-		var minX  = Math.min(...xs) - padding;
-		var maxX  = Math.max(...xs) + padding;
-		var minY  = Math.min(...ys) - padding;
-		var maxY  = Math.max(...ys) + padding;
-		var bboxW = maxX - minX;
-		var bboxH = maxY - minY;
+	const autoFit = (animated) => {
+		const padding = nodeSize + 60;
+		const xs = nodes.map(n => n.x);
+		const ys = nodes.map(n => n.y);
+		const minX  = Math.min(...xs) - padding;
+		const maxX  = Math.max(...xs) + padding;
+		const minY  = Math.min(...ys) - padding;
+		const maxY  = Math.max(...ys) + padding;
+		const bboxW = maxX - minX;
+		const bboxH = maxY - minY;
 		if (bboxW < 1 || bboxH < 1) return;
-		var scale = Math.min(width / bboxW, height / bboxH, 1.5);
-		var tx    = (width  - scale * (minX + maxX)) / 2;
-		var ty    = (height - scale * (minY + maxY)) / 2;
-		var t     = d3.zoomIdentity.translate(tx, ty).scale(scale);
+		const scale = Math.min(width / bboxW, height / bboxH, 1.5);
+		const tx    = (width  - scale * (minX + maxX)) / 2;
+		const ty    = (height - scale * (minY + maxY)) / 2;
+		const t     = d3.zoomIdentity.translate(tx, ty).scale(scale);
 		if (animated) {
 			svg.transition().duration(600).call(zoom.transform, t);
 		} else {
@@ -302,7 +302,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 	};
 
 	// Pin every node once the simulation has settled so nothing drifts afterwards
-	var pinAllNodes = () => {
+	const pinAllNodes = () => {
 		nodes.forEach(n => { n.fx = n.x; n.fy = n.y; });
 	};
 
@@ -315,7 +315,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 
 	// Inject the icon-size slider if not already present
 	if (!document.getElementById('node_size_slider')) {
-		var sliderHtml =
+		const sliderHtml =
 			"<div id='node_size_ctrl' style='" +
 			"position:absolute;top:8px;right:12px;background:rgba(255,255,255,0.88);" +
 			"border:1px solid #ccc;border-radius:6px;padding:6px 12px;" +
@@ -331,7 +331,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 
 		document.getElementById('node_size_slider').addEventListener('input', function() {
 			nodeSize = parseInt(this.value);
-			var s = nodeSize / 24;
+			const s = nodeSize / 24;
 			d3.selectAll(".node-icon")
 				.attr("transform", `scale(${s})`);
 			d3.selectAll(".node-label")
@@ -351,9 +351,9 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 
 // Handle edge double-click for tooltips
 function handleEdgeClick(event, d) {
-	var edgeId = d.id;
-	var x = event.clientX;
-	var y = event.clientY;
+	const edgeId = d.id;
+	const x = event.clientX;
+	const y = event.clientY;
 
 	if (d.graph_id) {
 		if (!$("div." + edgeId).length) {
@@ -363,15 +363,15 @@ function handleEdgeClick(event, d) {
 			$("div." + edgeId).animate({left: x, top: y}, 0);
 		}
 
-		var graph_id = d.graph_id;
-		var graph_height = 150;
-		var graph_width = 600;
-		var rra_id = 1;
-		var now = new Date();
-		var graph_end = Math.round(now.getTime() / 1000);
-		var graph_start = graph_end - 86400;
+		const graph_id = d.graph_id;
+		const graph_height = 150;
+		const graph_width = 600;
+		const rra_id = 1;
+		const now = new Date();
+		const graph_end = Math.round(now.getTime() / 1000);
+		const graph_start = graph_end - 86400;
 
-		var url = '../../graph_json.php?' +
+		const url = '../../graph_json.php?' +
 			'local_graph_id=' + graph_id +
 			'&graph_height=' + graph_height +
 			'&graph_start=' + graph_start +
@@ -385,7 +385,7 @@ function handleEdgeClick(event, d) {
 			url: url,
 			data: { __csrf_magic: csrfMagicToken },
 			success: function(data) {
-				var template = "<img id='graph_" + data.local_graph_id +
+				const template = "<img id='graph_" + data.local_graph_id +
 					"' src='data:image/" + data.type + ";base64," + data.image +
 					"' graph_start='" + data.graph_start +
 					"' graph_end='" + data.graph_end +
@@ -404,12 +404,14 @@ function handleEdgeClick(event, d) {
 					"' value_min='" + data.value_min +
 					"' value_max='" + data.value_max + "'>";
 
-				var tooltip = $("div.tooltip_" + edgeId).dxTooltip({
-					target: "div." + edgeId,
-					position: "right",
-					closeOnOutsideClick: () => tooltip.hide(),
-					contentTemplate: (contentData) => contentData.html(template)
-				}).dxTooltip("instance");
+					let tooltipRef = null;
+					const tooltip = $("div.tooltip_" + edgeId).dxTooltip({
+						target: "div." + edgeId,
+						position: "right",
+						closeOnOutsideClick: () => tooltipRef && tooltipRef.hide(),
+						contentTemplate: (contentData) => contentData.html(template)
+					}).dxTooltip("instance");
+					tooltipRef = tooltip;
 
 				tooltips[edgeId] = tooltip;
 				tooltip.show();
@@ -428,16 +430,16 @@ function dragstarted(event, d) {
 
 function dragged(event, d) {
 	// Prevent nodes from being dragged outside the visible canvas by clamping coordinates
-	var w = (network && network.width) ? network.width : (document.getElementById('map_container')?.clientWidth || window.innerWidth);
-	var h = (network && network.height) ? network.height : (document.getElementById('map_container')?.clientHeight || window.innerHeight);
-	var pad = Math.max(nodeSize, 40); // keep icon fully visible
-	var minX = pad / 2;
-	var maxX = Math.max(minX, w - pad / 2);
-	var minY = pad / 2;
-	var maxY = Math.max(minY, h - pad / 2);
+	const w = (network && network.width) ? network.width : (document.getElementById('map_container')?.clientWidth || window.innerWidth);
+	const h = (network && network.height) ? network.height : (document.getElementById('map_container')?.clientHeight || window.innerHeight);
+	const pad = Math.max(nodeSize, 40); // keep icon fully visible
+	const minX = pad / 2;
+	const maxX = Math.max(minX, w - pad / 2);
+	const minY = pad / 2;
+	const maxY = Math.max(minY, h - pad / 2);
 
-	var nx = Math.max(minX, Math.min(event.x, maxX));
-	var ny = Math.max(minY, Math.min(event.y, maxY));
+	const nx = Math.max(minX, Math.min(event.x, maxX));
+	const ny = Math.max(minY, Math.min(event.y, maxY));
 
 	d.fx = nx;
 	d.fy = ny;
@@ -446,13 +448,13 @@ function dragged(event, d) {
 function dragended(event, d) {
 	if (!event.active) simulation.alphaTarget(0);
 	// Ensure final pinned position also remains within bounds
-	var w = (network && network.width) ? network.width : (document.getElementById('map_container')?.clientWidth || window.innerWidth);
-	var h = (network && network.height) ? network.height : (document.getElementById('map_container')?.clientHeight || window.innerHeight);
-	var pad = Math.max(nodeSize, 40);
-	var minX = pad / 2;
-	var maxX = Math.max(minX, w - pad / 2);
-	var minY = pad / 2;
-	var maxY = Math.max(minY, h - pad / 2);
+	const w = (network && network.width) ? network.width : (document.getElementById('map_container')?.clientWidth || window.innerWidth);
+	const h = (network && network.height) ? network.height : (document.getElementById('map_container')?.clientHeight || window.innerHeight);
+	const pad = Math.max(nodeSize, 40);
+	const minX = pad / 2;
+	const maxX = Math.max(minX, w - pad / 2);
+	const minY = pad / 2;
+	const maxY = Math.max(minY, h - pad / 2);
 
 	d.fx = Math.max(minX, Math.min(d.fx, maxX));
 	d.fy = Math.max(minY, Math.min(d.fy, maxY));
@@ -495,8 +497,8 @@ function hideTooltips() {
 
 // Color generation functions
 function hex(c) {
-	var s = "0123456789abcdef";
-	var i = parseInt(c);
+	const s = "0123456789abcdef";
+	let i = parseInt(c);
 	if (i === 0 || isNaN(c)) return "00";
 	i = Math.round(Math.min(Math.max(0, i), 255));
 	return s.charAt((i - i % 16) / 16) + s.charAt(i % 16);
@@ -507,7 +509,7 @@ function convertToHex(rgb) {
 }
 
 function convertToRGB(hex) {
-	var color = [];
+	const color = [];
 	color[0] = parseInt((hex).substring(0, 2), 16);
 	color[1] = parseInt((hex).substring(2, 4), 16);
 	color[2] = parseInt((hex).substring(4, 6), 16);
@@ -515,14 +517,14 @@ function convertToRGB(hex) {
 }
 
 function generateColor(colorStart, colorEnd, colorCount) {
-	var start = convertToRGB(colorStart);
-	var end = convertToRGB(colorEnd);
-	var len = colorCount;
-	var alpha = 0.0;
-	var colors = [];
+	const start = convertToRGB(colorStart);
+	const end = convertToRGB(colorEnd);
+	const len = colorCount;
+	let alpha = 0.0;
+	const colors = [];
 
-	for (var i = 0; i < len; i++) {
-		var c = [];
+	for (let i = 0; i < len; i++) {
+		const c = [];
 		alpha += (1.0 / len);
 		c[0] = start[0] * alpha + (1 - alpha) * end[0];
 		c[1] = start[1] * alpha + (1 - alpha) * end[1];

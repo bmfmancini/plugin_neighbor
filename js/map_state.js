@@ -28,14 +28,14 @@ var network = (typeof network !== "undefined" && network) ? network : {
 
 // Lightweight runtime smoke checks for browser console usage.
 function runNeighborMapSmokeChecks() {
-	var checks = [];
+	const checks = [];
 	checks.push({ name: "mapOptions exists", ok: typeof mapOptions === "object" && mapOptions !== null });
 	checks.push({ name: "drawMap function exists", ok: typeof drawMap === "function" });
 	checks.push({ name: "storeCoords function exists", ok: typeof storeCoords === "function" });
 	checks.push({ name: "resetMap function exists", ok: typeof resetMap === "function" });
 	checks.push({ name: "map container exists", ok: !!document.getElementById("map_container") });
 
-	var failures = checks.filter(function(c) { return !c.ok; });
+	const failures = checks.filter(function(c) { return !c.ok; });
 	if (failures.length) {
 		console.warn("[neighbor map] smoke checks failed:", failures);
 	} else {
