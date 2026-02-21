@@ -93,37 +93,8 @@ function normalizeResponseArray(response) {
 }
 
 function enableMapMultiselect(mapSelect) {
-	if (!mapSelect || typeof $ !== 'function' || !$.fn || typeof $.fn.multiselect !== 'function') {
-		return;
-	}
-
-	const $mapSelect = $(mapSelect);
-	const updateFromMap = function() {
-		const selected = $mapSelect.val();
-		rule_id = selected || rule_id;
-		mapOptions.ajax = true;
-		drawMap();
-	};
-
-	try {
-		if ($mapSelect.data('multiselect')) {
-			$mapSelect.multiselect('destroy');
-		}
-
-		$mapSelect.multiselect({
-			header: false,
-			selectedList: 1,
-			noneSelectedText: 'Select a Map',
-			click: function() {
-				updateFromMap();
-			},
-			close: function() {
-				updateFromMap();
-			}
-		});
-	} catch (error) {
-		console.warn('[neighbor] map multiselect init failed, using native select', error);
-	}
+	// Keep map selector native for stable single-select rendering.
+	void mapSelect;
 }
 
 function enableHostMultiselect(hostSelect) {
@@ -248,7 +219,9 @@ function renderMapToolbar() {
 	}
 
 	holder.innerHTML = [
-		"<div style='display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 0;'>",
+		"<div class='neighbor-banner'>",
+		"<div class='neighbor-banner-title'>Neighbor Map</div>",
+		"<div class='neighbor-banner-controls'>",
 		"<label for='neighbor_map_select'><b>Select a Map:</b></label>",
 		"<select id='neighbor_map_select' style='min-width:220px;padding:4px;'></select>",
 		"<label for='neighbor_host_select'><b>Hosts:</b></label>",
@@ -256,9 +229,10 @@ function renderMapToolbar() {
 		"<label for='neighbor_last_seen'><b>Last Seen:</b></label>",
 		"<input id='neighbor_last_seen' type='range' min='1' max='14' value='3' style='width:110px;'>",
 		"<span id='neighbor_last_seen_value'>3 days</span>",
-		"<button type='button' id='neighbor_btn_save'>Save</button>",
+		"<button type='button' class='neighbor-btn-primary' id='neighbor_btn_save'>Save</button>",
 		"<button type='button' id='neighbor_btn_reset'>Reset</button>",
 		"<button type='button' id='neighbor_btn_seed'>Seed</button>",
+		"</div>",
 		'</div>'
 	].join('');
 

@@ -126,6 +126,13 @@ function display_neighbors() {
  * @return void Outputs HTML placeholder content
  */
 function display_routing_neighbors() {
+	print '<div class="neighbor-banner">';
+	print '<div class="neighbor-banner-title">' . __('Routing Neighbors', 'neighbor') . '</div>';
+	print '<div class="neighbor-banner-controls">';
+	print '<button type="button" class="neighbor-btn-primary" onclick="window.location.reload();">' . __('Refresh', 'neighbor') . '</button>';
+	print '</div>';
+	print '</div>';
+
 	html_start_box(__('Routing Protocol Neighbors', 'neighbor'), '100%', '', '3', 'center', '');
 
 	print '<tr><td>';

@@ -78,8 +78,12 @@
 		const selected = NEIGHBOR_TYPES.some(function(t) { return t.value === currentType; }) ? currentType : 'xdp';
 
 		holder.innerHTML = [
-			"<div style='display:flex;align-items:center;gap:10px;padding:8px 0;'>",
-			"<label for='neighbor_type_select'><strong>Type:</strong></label>",
+			"<div class='neighbor-banner'>",
+			"<div class='neighbor-banner-title'>Interface Neighbors</div>",
+			"<div class='neighbor-banner-controls'>",
+			"<label for='neighbor_table_search'><strong>Search</strong></label>",
+			"<input id='neighbor_table_search' type='search' placeholder='Enter a regular expression' style='min-width:260px;'>",
+			"<label for='neighbor_type_select'><strong>Type</strong></label>",
 			"<select id='neighbor_type_select' style='min-width:260px;padding:4px;'>",
 			NEIGHBOR_TYPES.map(function(type) {
 				const selectedAttr = type.value === selected ? ' selected' : '';
@@ -88,6 +92,9 @@
 				"</option>";
 			}).join(''),
 			"</select>",
+			"<button type='button' class='neighbor-btn-primary' id='neighbor_toolbar_go'>Go</button>",
+			"<button type='button' id='neighbor_toolbar_clear'>Clear</button>",
+			"</div>",
 			"</div>"
 		].join('');
 
@@ -100,6 +107,29 @@
 			const value = this.value;
 			window.location.replace('neighbor.php?action=neighbor_interface&neighbor_type=' + encodeURIComponent(value));
 		});
+
+		const search = document.getElementById('neighbor_table_search');
+		const goButton = document.getElementById('neighbor_toolbar_go');
+		const clearButton = document.getElementById('neighbor_toolbar_clear');
+
+		if (goButton) {
+			goButton.addEventListener('click', function() {
+				if (typeof window.neighborApplyTableSearch === 'function') {
+					window.neighborApplyTableSearch(search ? search.value : '');
+				}
+			});
+		}
+
+		if (clearButton) {
+			clearButton.addEventListener('click', function() {
+				if (search) {
+					search.value = '';
+				}
+				if (typeof window.neighborApplyTableSearch === 'function') {
+					window.neighborApplyTableSearch('');
+				}
+			});
+		}
 	}
 
 	function renderNeighborTable(containerSelector, columns, data) {
@@ -116,8 +146,7 @@
 		};
 
 		holder.innerHTML = [
-			"<div class='neighbor-table-controls' style='display:flex;justify-content:space-between;align-items:center;gap:12px;margin:8px 0 10px;'>",
-			"<input id='neighbor_table_search' type='search' placeholder='Search...' style='width:280px;max-width:100%;padding:4px 8px;'>",
+			"<div class='neighbor-table-controls' style='display:flex;justify-content:flex-end;align-items:center;gap:12px;margin:8px 0 10px;'>",
 			"<span id='neighbor_table_count' style='color:#666;'></span>",
 			"</div>",
 			"<div style='overflow:auto;border:1px solid #ddd;'>",
@@ -136,7 +165,6 @@
 
 		const tbody = holder.querySelector('#neighbor_table tbody');
 		const count = holder.querySelector('#neighbor_table_count');
-		const search = holder.querySelector('#neighbor_table_search');
 		const headers = holder.querySelectorAll('#neighbor_table th[data-field]');
 
 		function filterRows() {
@@ -197,12 +225,10 @@
 			}).join('');
 		}
 
-		if (search) {
-			search.addEventListener('input', function() {
-				state.query = this.value.trim();
-				renderRows();
-			});
-		}
+		window.neighborApplyTableSearch = function(value) {
+			state.query = String(value || '').trim();
+			renderRows();
+		};
 
 		headers.forEach(function(header) {
 			header.addEventListener('click', function() {
