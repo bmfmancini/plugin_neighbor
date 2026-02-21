@@ -1,24 +1,7 @@
 
 // D3.js Network Topology Visualization
 // Displays physical devices with router images and logical connections with lightning bolts
-
-var tooltips = [];		// Array to store and destroy tooltips
-var mapOptions = {
-	ajax: true,				// Fetch from Ajax by default
-	refreshInterval: 30000,	// 30 seconds for live updates
-	selectedHosts: []	// Array of selected host IDs for filtered view
-};
-var nodesData = [];			// Native array for nodes
-var edgesData = [];			// Native array for edges
-var simulation = null;		// D3 force simulation
-var svg = null;				// SVG container
-var zoom = null;			// D3 zoom behavior
-var network = {
-	getSeed: function() { return (typeof mapOptions.seed !== 'undefined') ? mapOptions.seed : null; }
-};		// Network object for compatibility (getSeed provided for toolbar)
-var refreshTimer = null;	// Timer for live updates
-var nodeSize = 48;			// Icon size in pixels (controlled by slider)
-var labelSize = 12;			// Label font size in pixels (controlled by slider)
+// Shared state is initialized in js/map_state.js.
 
 // SVG symbols for router icons (guarded so re-evaluating the script won't redeclare)
 if (typeof window.routerSymbol === 'undefined') {
@@ -142,55 +125,7 @@ var resetMap = function() {
 	});
 }
 
-// Filter nodes by host pattern
-var filterNodes = function(nodes) {
-	if (!mapOptions.hostFilter) return nodes;
-
-	var regex = new RegExp(mapOptions.hostFilter, "i");
-	return nodes.filter(node => node.label.match(regex));
-}
-
-// Filter edges by last seen time and node filtering
-var filterEdges = function(nodes, edges) {
-	var filteredNodes = filterNodes(nodes);
-	// If user selected specific hosts, include only those hosts and any nodes directly connected to them
-	if (mapOptions.selectedHosts && mapOptions.selectedHosts.length) {
-		var sel = new Set(mapOptions.selectedHosts.map(String));
-		// collect node ids that should be visible: selected + direct neighbors
-		var visible = new Set();
-		filteredNodes.forEach(n => { if (sel.has(String(n.id))) visible.add(String(n.id)); });
-		edges.forEach(e => {
-			if (sel.has(String(e.source)) || sel.has(String(e.target))) {
-				visible.add(String(e.source));
-				visible.add(String(e.target));
-			}
-		});
-		filteredNodes = filteredNodes.filter(n => visible.has(String(n.id)));
-	}
-	// Coerce to string so integer IDs and string IDs both match
-	var nodeIds = new Set(filteredNodes.map(n => String(n.id)));
-
-	// Filter edges to only include those between visible nodes
-	var filteredEdges = edges.filter(edge =>
-		nodeIds.has(String(edge.source)) && nodeIds.has(String(edge.target))
-	);
-
-	// Filter by last seen if specified
-	if (mapOptions.lastSeen) {
-		var filterTime = moment().subtract(mapOptions.lastSeen, 'days');
-		filteredEdges = filteredEdges.filter(edge => {
-			var edgeTime = moment(edge.last_seen, "YYYY-MM-DD HH:mm:ss");
-			return edgeTime.isAfter(filterTime);
-		});
-	}
-
-	return { nodes: filteredNodes, edges: filteredEdges };
-}
-
-// Reindex arrays to ensure sequential keys
-var reindexArray = function(arr) {
-	return arr.filter(item => item != null);
-}
+// Filtering helpers are loaded from js/map_filters.js.
 
 var drawMap = function() {
 	var container = document.getElementById('map_container');

@@ -1924,6 +1924,8 @@ function display_interface_map($rule_id = 1) {
 	// Load the d3.js library
 	printf("<script type='text/javascript' src='%s'></script>",'js/d3.v7.min.js');
 	printf("<script type='text/javascript' src='%s'></script>",'js/moment.min.js');
+	printf("<script type='text/javascript' src='%s'></script>",'js/map_state.js');
+	printf("<script type='text/javascript' src='%s'></script>",'js/map_filters.js');
 	printf("<script type='text/javascript' src='%s'></script>",'js/map.js');
 
 	// Print the div to hold the map in
