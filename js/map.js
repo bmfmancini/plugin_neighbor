@@ -77,11 +77,8 @@ var storeCoords = function() {
 
 	var jsonItems = JSON.stringify(items);
 
-	$.ajax({
-		method: "POST",
-		url: "ajax.php",
-		dataType: "jsonp",
-		data: {
+	neighborMapSaveOptions(
+		{
 			action: "ajax_map_save_options",
 			__csrf_magic: csrfMagicToken,
 			items: jsonItems,
@@ -90,39 +87,36 @@ var storeCoords = function() {
 			canvas_x: canvas_x,
 			canvas_y: canvas_y
 		},
-		success: function(response) {
+		function(response) {
 			var message = response.Response?.[0]?.message || "";
 			DevExpress.ui.notify(message, "success", 3000);
 		},
-		error: function() {
+		function() {
 			DevExpress.ui.notify("Error saving map positions", "error", 3000);
 		}
-	});
+	);
 }
 
 // Reset map positions
 var resetMap = function() {
-	$.ajax({
-		method: "POST",
-		url: "ajax.php",
-		dataType: "jsonp",
-		data: {
+	neighborMapResetOptions(
+		{
 			action: "ajax_map_reset_options",
 			format: "jsonp",
 			__csrf_magic: csrfMagicToken,
 			user_id: user_id,
 			rule_id: rule_id
 		},
-		success: function(response) {
+		function(response) {
 			var message = response.Response?.[0]?.message || "";
 			DevExpress.ui.notify(message, "success", 3000);
 			mapOptions.ajax = true;
 			drawMap();
 		},
-		error: function() {
+		function() {
 			DevExpress.ui.notify("Error resetting map", "error", 3000);
 		}
-	});
+	);
 }
 
 // Filtering helpers are loaded from js/map_filters.js.
@@ -160,12 +154,9 @@ var drawMap = function() {
 			selected_hosts: (mapOptions.selectedHosts && mapOptions.selectedHosts.length) ? mapOptions.selectedHosts.join(',') : ''
 		};
 		if (mapOptions.ajax == true) {
-			$.ajax({
-			method: "POST",
-			url: "ajax.php",
-			data: dataOptions,
-			dataType: "jsonp",
-			success: function(response) {
+			neighborMapFetchTopology(
+			dataOptions,
+			function(response) {
 				var responseArray = response.Response?.[0] || {};
 					// preserve server-supplied seed so UI/tooling can access it
 					mapOptions.seed = responseArray.seed || null;
@@ -216,12 +207,15 @@ var drawMap = function() {
 				createVisualization(container, nodes, physicalEdges, logicalEdges, physics);
 
 				// Start live updates if enabled
-				if (mapOptions.refreshInterval > 0) {
-					startLiveUpdates();
+					if (mapOptions.refreshInterval > 0) {
+						startLiveUpdates();
+					}
+				},
+				function() {
+					DevExpress.ui.notify("Error loading map data", "error", 3000);
 				}
-			}
-		});
-		} else {
+			);
+			} else {
 			// Use cached data for filtering
 			var nodes = Array.isArray(mapOptions.ajaxNodes) ? mapOptions.ajaxNodes.slice() : [];
 			var edges = Array.isArray(mapOptions.ajaxEdges) ? mapOptions.ajaxEdges.slice() : [];
