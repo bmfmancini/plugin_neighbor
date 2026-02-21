@@ -30,18 +30,14 @@ include_once($config['base_path'] . '/plugins/neighbor/lib/api_neighbor.php');
 /**
  * Include CSS and JavaScript dependencies for neighbor tab interface
  *
- * Loads DevExpress UI components, CLDR for internationalization, and neighbor-specific
- * JavaScript. Creates a div container for the tabbed interface.
+ * Loads neighbor UI JavaScript and creates a div container for the tabbed interface.
  *
  * @return void Outputs HTML and script tags
  */
 function neighbor_tabs() {
 	global $config;
-	printf("<link href='%s' rel='stylesheet'>", 'js/devexpress/css/dx.common.css');
-	printf("<link href='%s' rel='stylesheet'>", 'js/devexpress/css/dx.light.css');
-	printf("<script type='text/javascript' src='%s'></script>",'js/devexpress/js/cldr.min.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/devexpress/js/dx.all.js');
-	printf("<script type='text/javascript' src='%s'></script>",'js/neighbor.js');
+	printf("<link rel='stylesheet' type='text/css' href='%s'>", $config['url_path'] . 'plugins/neighbor/css/neighbor_banner.css');
+	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/neighbor.js');
 	print "<div id='neighbor_tabs'></div>";
 }
 

@@ -93,6 +93,8 @@ $_SESSION['sess_nav_level_cache'] = '';
  * @return void Outputs HTML and JavaScript includes
  */
 function display_neighbors() {
+	global $config;
+
 	// ================= input validation =================
 	$neighbor_type = 'xdp';
 
@@ -111,9 +113,9 @@ function display_neighbors() {
 	print "<form>\n";
 	print "<input type='hidden' id='table' value='xdp'>\n";
 	print "</form>\n";
-	printf("<link rel='stylesheet' type='text/css' href='%s'>\n", 'css/ionicons.min.css');
-	printf("<script type='text/javascript' src='%s'></script>\n", 'js/tables_interface.js');
-	printf("<script type='text/javascript' src='%s'></script>\n", 'js/tables_' . $neighbor_type . '.js');
+	printf("<link rel='stylesheet' type='text/css' href='%s'>\n", $config['url_path'] . 'plugins/neighbor/css/ionicons.min.css');
+	printf("<script type='text/javascript' src='%s'></script>\n", $config['url_path'] . 'plugins/neighbor/js/tables_interface.js');
+	printf("<script type='text/javascript' src='%s'></script>\n", $config['url_path'] . 'plugins/neighbor/js/tables_' . $neighbor_type . '.js');
 }
 
 /**
@@ -124,6 +126,13 @@ function display_neighbors() {
  * @return void Outputs HTML placeholder content
  */
 function display_routing_neighbors() {
+	print '<div class="neighbor-banner">';
+	print '<div class="neighbor-banner-title">' . __('Routing Neighbors', 'neighbor') . '</div>';
+	print '<div class="neighbor-banner-controls">';
+	print '<button type="button" class="neighbor-btn-primary" onclick="window.location.reload();">' . __('Refresh', 'neighbor') . '</button>';
+	print '</div>';
+	print '</div>';
+
 	html_start_box(__('Routing Protocol Neighbors', 'neighbor'), '100%', '', '3', 'center', '');
 
 	print '<tr><td>';
