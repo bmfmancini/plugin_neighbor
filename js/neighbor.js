@@ -98,16 +98,28 @@ function enableMapMultiselect(mapSelect) {
 	}
 
 	const $mapSelect = $(mapSelect);
+	const updateFromMap = function() {
+		const selected = $mapSelect.val();
+		rule_id = selected || rule_id;
+		mapOptions.ajax = true;
+		drawMap();
+	};
+
 	try {
 		if ($mapSelect.data('multiselect')) {
-			$mapSelect.multiselect('refresh');
-			return;
+			$mapSelect.multiselect('destroy');
 		}
 
 		$mapSelect.multiselect({
 			header: false,
 			selectedList: 1,
-			noneSelectedText: 'Select a Map'
+			noneSelectedText: 'Select a Map',
+			click: function() {
+				updateFromMap();
+			},
+			close: function() {
+				updateFromMap();
+			}
 		});
 	} catch (error) {
 		console.warn('[neighbor] map multiselect init failed, using native select', error);
@@ -258,7 +270,6 @@ function renderMapToolbar() {
 
 	ruleDropdown(user_id, rule_id);
 	populateHostSelector(hostSelect);
-	enableMapMultiselect(selectBox);
 
 	selectBox.addEventListener('change', function() {
 		rule_id = this.value;
