@@ -36,7 +36,7 @@ include_once($config['base_path'] . '/plugins/neighbor/lib/api_neighbor.php');
  */
 function neighbor_tabs() {
 	global $config;
-	printf("<script type='text/javascript' src='%s'></script>",'plugins/neighbor/js/neighbor.js');
+	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/neighbor.js');
 	print "<div id='neighbor_tabs'></div>";
 }
 
