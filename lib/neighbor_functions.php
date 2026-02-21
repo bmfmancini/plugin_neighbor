@@ -37,25 +37,12 @@ include_once($config['base_path'] . '/plugins/neighbor/lib/api_neighbor.php');
 function neighbor_tabs() {
 	global $config;
 
-	$theme_name = '';
+	$selectedTheme = function_exists('get_selected_theme') ? get_selected_theme() : 'modern';
 
-	if (function_exists('get_selected_theme')) {
-		$theme_name = get_selected_theme();
-	} elseif (isset($_SESSION['sess_theme'])) {
-		$theme_name = $_SESSION['sess_theme'];
-	}
+	print "<link type='text/css' href='" . $config['url_path'] . "plugins/neighbor/themes/common.css' rel='stylesheet'>";
 
-	$theme_name = $theme_name !== '' ? preg_replace('/[^a-z0-9_\-]/i', '', strtolower($theme_name)) : 'modern';
-
-	$common_rel = 'plugins/neighbor/themes/common.css';
-	$theme_rel  = 'plugins/neighbor/themes/' . $theme_name . '.css';
-	$banner_rel = 'plugins/neighbor/css/neighbor_banner.css';
-
-	foreach ([$common_rel, $theme_rel, $banner_rel] as $css_rel) {
-		$css_abs = $config['base_path'] . '/' . $css_rel;
-		if (file_exists($css_abs)) {
-			printf("<link rel='stylesheet' type='text/css' href='%s?v=%d'>", $config['url_path'] . $css_rel, filemtime($css_abs));
-		}
+	if (file_exists($config['base_path'] . '/plugins/neighbor/themes/' . $selectedTheme . '.css')) {
+		print "<link type='text/css' href='" . $config['url_path'] . 'plugins/neighbor/themes/' . $selectedTheme . ".css' rel='stylesheet'>";
 	}
 
 	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/neighbor.js');
