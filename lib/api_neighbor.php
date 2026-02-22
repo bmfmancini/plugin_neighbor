@@ -1548,7 +1548,8 @@ function get_neighbor_objects_by_rule($rule_id, $host_filter = '', $edge_filter 
 			record_hash,
 			last_seen,
 			link_kind,
-			protocol
+			protocol,
+			metadata_json
 		FROM plugin_neighbor_link';
 
 	if (cacti_sizeof($where)) {
@@ -1751,16 +1752,48 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
 
 				$protocol = isset($rec3['type']) ? strtolower((string) $rec3['type']) : '';
 				$link_kind = isset($rec3['link_kind']) ? (string) $rec3['link_kind'] : '';
+				$meta = [];
+				if (isset($rec3['metadata_json']) && $rec3['metadata_json'] !== '') {
+					$decoded = json_decode($rec3['metadata_json'], true);
+					if (is_array($decoded)) {
+						$meta = $decoded;
+					}
+				}
+
+				$peerIp = isset($rec3['neighbor_interface_ip']) && $rec3['neighbor_interface_ip'] !== '' ? $rec3['neighbor_interface_ip'] : (isset($rec3['interface_name']) ? $rec3['interface_name'] : '');
+				$peerAs = isset($meta['peer_as']) ? $meta['peer_as'] : '';
+				$peerState = isset($meta['peer_state']) ? $meta['peer_state'] : '';
+
 				$label = get_speed_label(isset($rec3['interface_speed']) ? $rec3['interface_speed'] : 0);
 				if ($label === null || $label === '') {
 					$label = strtoupper($protocol);
 				}
-				$title = sprintf('%s - %s to %s - %s',
-					$rec3['hostname'],
-					$rec3['interface_name'],
-					$rec3['neighbor_hostname'],
-					$rec3['neighbor_interface_name']
-				);
+
+				if (in_array($protocol, ['bgp', 'ospf', 'isis'], true)) {
+					$logicalPeerLabel = strtoupper($protocol) . '-PEER - ' . $peerIp;
+					if ($peerAs !== '') {
+						$logicalPeerLabel .= "\nPEER AS - " . $peerAs;
+					}
+					if ($peerState !== '') {
+						$logicalPeerLabel .= "\nSTATE - " . $peerState;
+					}
+
+					if (isset($rec3['neighbor_hostname']) && trim((string) $rec3['neighbor_hostname']) !== '') {
+						$toLabel = (string) $rec3['neighbor_hostname'];
+					} else {
+						$toLabel = $logicalPeerLabel;
+					}
+
+					$title = sprintf('%s -> %s', $rec3['hostname'], str_replace("\n", ' | ', $toLabel));
+				} else {
+					$toLabel = isset($rec3['neighbor_hostname']) ? $rec3['neighbor_hostname'] : '';
+					$title = sprintf('%s - %s to %s - %s',
+						$rec3['hostname'],
+						$rec3['interface_name'],
+						$rec3['neighbor_hostname'],
+						$rec3['neighbor_interface_name']
+					);
+				}
 
 				$rrd_file       = get_rra_file($from, $rec3['snmp_id'], $interface_data_template_id);
 				$graph_local_id = get_interface_graph_local($from, $rec3['snmp_id'], $interface_graph_template_id);
@@ -1823,7 +1856,7 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
 					'label'     => $label,
 					'title'     => $title,
 					'from_label'=> $rec3['hostname'],
-					'to_label'  => $rec3['neighbor_hostname'],
+					'to_label'  => $toLabel,
 					'smooth'    => true,
 					'poller'    => $poller_json,
 					'rrd_file'  => $rrd_file,

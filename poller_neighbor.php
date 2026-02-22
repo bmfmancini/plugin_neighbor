@@ -362,10 +362,22 @@ function discoverRoutingNeighbors($host, $protocol) {
 		$peerStateCode = isset($peer['peer_state_code']) ? (int) $peer['peer_state_code'] : 0;
 		$neighborHostId = 0;
 		$neighborHostname = '';
-		$resolved = db_fetch_row_prepared('SELECT id, description FROM host WHERE hostname = ? OR description = ? LIMIT 1', [$peerIp, $peerIp]);
+
+		$resolved = db_fetch_row_prepared('SELECT id, description, hostname FROM host WHERE hostname = ? OR description = ? LIMIT 1', [$peerIp, $peerIp]);
+
+		if ((!is_array($resolved) || !isset($resolved['id'])) && $peerIp !== '') {
+			$resolved = db_fetch_row_prepared('SELECT h.id, h.description, h.hostname
+				FROM plugin_neighbor_ipv4_cache c
+				INNER JOIN host h ON h.id = c.host_id
+				WHERE c.ip_address = ?
+				LIMIT 1', [$peerIp]);
+		}
+
 		if (is_array($resolved) && isset($resolved['id'])) {
 			$neighborHostId = (int) $resolved['id'];
-			$neighborHostname = isset($resolved['description']) ? $resolved['description'] : '';
+			$desc = isset($resolved['description']) ? (string) $resolved['description'] : '';
+			$name = isset($resolved['hostname']) ? (string) $resolved['hostname'] : '';
+			$neighborHostname = trim($desc . ($name !== '' ? ' (' . $name . ')' : ''));
 		}
 
 		$recordHash = md5(serialize([$protocol, $hostId, $peerIp, $peerIdentifier, $peerAs]));

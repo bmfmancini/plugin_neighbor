@@ -141,22 +141,73 @@ function display_routing_neighbors() {
 	print '</div>';
 	print '</div>';
 
+	$rows = [];
+	$has_link_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_link'");
+
+	if ($has_link_table) {
+		$rows = db_fetch_assoc("SELECT
+				protocol,
+				host_id,
+				hostname,
+				neighbor_host_id,
+				neighbor_hostname,
+				neighbor_interface_ip AS peer_ip,
+				JSON_UNQUOTE(JSON_EXTRACT(metadata_json, '$.peer_as')) AS peer_as,
+				JSON_UNQUOTE(JSON_EXTRACT(metadata_json, '$.peer_state')) AS peer_state,
+				last_seen
+			FROM plugin_neighbor_link
+			WHERE link_kind = 'logical'
+			AND protocol IN ('bgp','ospf','isis')
+			ORDER BY last_seen DESC, protocol, hostname, neighbor_hostname");
+	} else {
+		$has_routing_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_routing'");
+		if ($has_routing_table) {
+			$rows = db_fetch_assoc("SELECT
+					type AS protocol,
+					host_id,
+					hostname,
+					neighbor_host_id,
+					neighbor_hostname,
+					peer_ip,
+					peer_as,
+					peer_state,
+					last_seen
+				FROM plugin_neighbor_routing
+				ORDER BY last_seen DESC, type, hostname, neighbor_hostname");
+		}
+	}
+
 	html_start_box(__('Routing Protocol Neighbors', 'neighbor'), '100%', '', '3', 'center', '');
 
-	print '<tr><td>';
-	print '<div class="neighbor-routing-summary">';
-	print '<h3>' . __('Routing Protocol Neighbor Discovery', 'neighbor') . '</h3>';
-	print '<p>' . __('This feature displays neighbors discovered via routing protocols:', 'neighbor') . '</p>';
-	print '<ul class="neighbor-routing-list">';
-	print '<li>' . __('OSPF (Open Shortest Path First)', 'neighbor') . '</li>';
-	print '<li>' . __('BGP (Border Gateway Protocol)', 'neighbor') . '</li>';
-	print '<li>' . __('IS-IS (Intermediate System to Intermediate System)', 'neighbor') . '</li>';
-	print '</ul>';
-	print '<p><em>' . __('Note: Routing protocol discovery must be enabled in Settings and configured on your devices.', 'neighbor') . '</em></p>';
-	print '</div>';
-	print '</td></tr>';
+	$display_text = [
+		['display' => __('Protocol', 'neighbor'), 'align' => 'left'],
+		['display' => __('Host', 'neighbor'), 'align' => 'left'],
+		['display' => __('Neighbor', 'neighbor'), 'align' => 'left'],
+		['display' => __('Peer IP', 'neighbor'), 'align' => 'left'],
+		['display' => __('Peer AS', 'neighbor'), 'align' => 'right'],
+		['display' => __('State', 'neighbor'), 'align' => 'left'],
+		['display' => __('Last Seen', 'neighbor'), 'align' => 'left'],
+	];
 
-	html_end_box();
+	html_header($display_text, 2);
+
+	if (is_array($rows) && cacti_sizeof($rows)) {
+		foreach ($rows as $row) {
+			form_alternate_row();
+			print '<td>' . html_escape(strtoupper((string) $row['protocol'])) . '</td>';
+			print '<td>' . html_escape($row['hostname']) . ' (' . (int) $row['host_id'] . ')</td>';
+			print '<td>' . html_escape($row['neighbor_hostname']) . ' (' . (int) $row['neighbor_host_id'] . ')</td>';
+			print '<td>' . html_escape($row['peer_ip']) . '</td>';
+			print '<td class="right">' . html_escape((string) $row['peer_as']) . '</td>';
+			print '<td>' . html_escape($row['peer_state']) . '</td>';
+			print '<td>' . html_escape($row['last_seen']) . '</td>';
+			form_end_row();
+		}
+	} else {
+		print "<tr><td colspan='7'><em>" . __('No Routing Neighbors Found', 'neighbor') . '</em></td></tr>';
+	}
+
+	html_end_box(false);
 }
 
 // Summary Action

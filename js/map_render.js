@@ -217,16 +217,32 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 			.attr("x", -12)
 			.attr("y", -12);
 
-	// Add labels below the icon
-	node.append("text")
+	// Add labels below the icon (supports multi-line labels via '\n')
+	const nodeLabel = node.append("text")
 		.attr("class", "node-label")
 		.attr("text-anchor", "middle")
-		.attr("dy", nodeSize / 2 + 14)
+		.attr("dominant-baseline", "hanging")
+		.attr("y", nodeSize / 2 + 8)
 		.style("font-size", labelSize + "px")
 		.style("font-family", "Arial, sans-serif")
 		.style("font-weight", "600")
-		.style("fill", "#1a1a2e")
-		.text(d => d.label);
+		.style("fill", "#1a1a2e");
+
+	nodeLabel.each(function(d) {
+		const text = d3.select(this);
+		const raw = (d && d.label !== undefined && d.label !== null) ? String(d.label) : "";
+		const lines = raw.split(/\r?\n/).filter(line => line !== "");
+		if (!lines.length) {
+			lines.push("");
+		}
+
+		lines.forEach((line, i) => {
+			text.append("tspan")
+				.attr("x", 0)
+				.attr("dy", i === 0 ? 0 : "1.2em")
+				.text(line);
+		});
+	});
 
 	// Add tooltips and interactions
 	physicalLink.on("dblclick", handleEdgeClick);
@@ -335,7 +351,7 @@ function createVisualization(container, nodes, physicalEdges, logicalEdges, phys
 			d3.selectAll(".node-icon")
 				.attr("transform", `scale(${s})`);
 			d3.selectAll(".node-label")
-				.attr("dy", nodeSize / 2 + 14);
+				.attr("y", nodeSize / 2 + 8);
 			// Update collide force radius
 			simulation.force("collide", d3.forceCollide(nodeSize));
 			simulation.alpha(0.1).restart();
