@@ -218,6 +218,8 @@ function purgeStaleNeighborData() {
 	db_execute_prepared('DELETE FROM plugin_neighbor_xdp WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
 	db_execute_prepared('DELETE FROM plugin_neighbor_ipv4 WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
 	db_execute_prepared('DELETE FROM plugin_neighbor_ipv4_cache WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
+	db_execute_prepared('DELETE FROM plugin_neighbor_routing WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
+	db_execute_prepared('DELETE FROM plugin_neighbor_link WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
 }
 
 // neighbor_host_discovery_enabled() function is now in lib/neighbor_sql_tables.php
@@ -262,6 +264,21 @@ function discoverHost($hostId) {
 			discoverIpNeighbors($hostRec[0]);
 		}
 
+		if (read_config_option('neighbor_global_discover_bgp') && neighbor_host_discovery_enabled($hostRec[0], 'neighbor_discover_bgp')) {
+			$bgpNeighbors = discoverBgpNeighbors($hostRec[0]);
+			debug(sprintf('Found   %7d - BGP Neighbor(s)', $bgpNeighbors));
+		}
+
+		if (read_config_option('neighbor_global_discover_ospf') && neighbor_host_discovery_enabled($hostRec[0], 'neighbor_discover_ospf')) {
+			$ospfNeighbors = discoverOspfNeighbors($hostRec[0]);
+			debug(sprintf('Found   %7d - OSPF Neighbor(s)', $ospfNeighbors));
+		}
+
+		if (read_config_option('neighbor_global_discover_isis') && neighbor_host_discovery_enabled($hostRec[0], 'neighbor_discover_isis')) {
+			$isisNeighbors = discoverIsisNeighbors($hostRec[0]);
+			debug(sprintf('Found   %7d - IS-IS Neighbor(s)', $isisNeighbors));
+		}
+
 		// $statsJson = json_encode($stats);
 		// remove the process lock
 		if ($key !== '' && $key !== null) {
@@ -276,6 +293,201 @@ function discoverHost($hostId) {
 
 		return true;
 	}
+}
+
+/**
+ * Discover and persist BGP neighbors.
+ *
+ * @param  array $host Host array from database.
+ * @return int Number of neighbors persisted.
+ */
+function discoverBgpNeighbors($host) {
+	return discoverRoutingNeighbors($host, 'bgp');
+}
+
+/**
+ * Discover and persist OSPF neighbors.
+ *
+ * @param  array $host Host array from database.
+ * @return int Number of neighbors persisted.
+ */
+function discoverOspfNeighbors($host) {
+	return discoverRoutingNeighbors($host, 'ospf');
+}
+
+/**
+ * Discover and persist IS-IS neighbors.
+ *
+ * @param  array $host Host array from database.
+ * @return int Number of neighbors persisted.
+ */
+function discoverIsisNeighbors($host) {
+	return discoverRoutingNeighbors($host, 'isis');
+}
+
+/**
+ * Discover and persist routing neighbors for a protocol.
+ *
+ * @param  array  $host Host array from database.
+ * @param  string $protocol bgp|ospf|isis
+ * @return int Number of neighbors persisted.
+ */
+function discoverRoutingNeighbors($host, $protocol) {
+	$oidTable = get_neighbor_oid_table();
+	$hostId = (int) $host['id'];
+	$hostname = isset($host['description']) ? $host['description'] : '';
+	$count = 0;
+
+	$protocol = strtolower((string) $protocol);
+	$walkKey = $protocol . 'MibWalk';
+	if (!isset($oidTable[$walkKey]) || !is_array($oidTable[$walkKey])) {
+		return 0;
+	}
+
+	$table = neighbor_snmp_walk_and_flatten($host, $oidTable[$walkKey]);
+	if (!is_array($table) || !cacti_sizeof($table)) {
+		return 0;
+	}
+
+	$rows = parseRoutingNeighbors($protocol, $table, $oidTable);
+	foreach ($rows as $peer) {
+		$peerIp = isset($peer['peer_ip']) ? $peer['peer_ip'] : '';
+		if ($peerIp === '') {
+			continue;
+		}
+
+		$peerIdentifier = isset($peer['peer_identifier']) ? $peer['peer_identifier'] : '';
+		$peerAs = isset($peer['peer_as']) ? (int) $peer['peer_as'] : 0;
+		$peerState = isset($peer['peer_state']) ? $peer['peer_state'] : '';
+		$peerStateCode = isset($peer['peer_state_code']) ? (int) $peer['peer_state_code'] : 0;
+		$neighborHostId = 0;
+		$neighborHostname = '';
+		$resolved = db_fetch_row_prepared('SELECT id, description FROM host WHERE hostname = ? OR description = ? LIMIT 1', [$peerIp, $peerIp]);
+		if (is_array($resolved) && isset($resolved['id'])) {
+			$neighborHostId = (int) $resolved['id'];
+			$neighborHostname = isset($resolved['description']) ? $resolved['description'] : '';
+		}
+
+		$recordHash = md5(serialize([$protocol, $hostId, $peerIp, $peerIdentifier, $peerAs]));
+		$neighborHash = md5(serialize([$protocol, min($hostId, $neighborHostId), max($hostId, $neighborHostId), $peerIp]));
+		$metadata = json_encode([
+			'peer_identifier' => $peerIdentifier,
+			'peer_as' => $peerAs,
+			'peer_state' => $peerState,
+			'peer_state_code' => $peerStateCode,
+		]);
+
+		if (db_execute_prepared('REPLACE INTO plugin_neighbor_routing
+			(type, host_id, hostname, peer_ip, peer_identifier, peer_as, peer_state, peer_state_code, neighbor_host_id, neighbor_hostname, record_hash, last_seen)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+			[$protocol, $hostId, $hostname, $peerIp, $peerIdentifier, $peerAs, $peerState, $peerStateCode, $neighborHostId, $neighborHostname, $recordHash]
+		)) {
+			upsert_normalized_link([
+				'link_kind' => 'logical',
+				'protocol' => $protocol,
+				'host_id' => $hostId,
+				'hostname' => $hostname,
+				'interface_name' => $peerIp,
+				'neighbor_host_id' => $neighborHostId,
+				'neighbor_hostname' => $neighborHostname,
+				'neighbor_interface_name' => $peerIdentifier,
+				'neighbor_interface_ip' => $peerIp,
+				'neighbor_hash' => $neighborHash,
+				'record_hash' => $recordHash,
+				'metadata_json' => $metadata ? $metadata : '',
+			]);
+			$count++;
+		}
+	}
+
+	return $count;
+}
+
+/**
+ * Parse protocol-specific SNMP rows into normalized peer records.
+ *
+ * @param  string $protocol bgp|ospf|isis
+ * @param  array  $table SNMP walk table
+ * @param  array  $oidTable OID dictionary
+ * @return array
+ */
+function parseRoutingNeighbors($protocol, $table, $oidTable) {
+	switch ($protocol) {
+		case 'bgp':
+			return parseBgpNeighbors($table, $oidTable);
+		case 'ospf':
+			return parseOspfNeighbors($table, $oidTable);
+		case 'isis':
+			return parseIsisNeighbors($table, $oidTable);
+		default:
+			return [];
+	}
+}
+
+function parseBgpNeighbors($table, $oidTable) {
+	$stateMap = [1 => 'idle', 2 => 'connect', 3 => 'active', 4 => 'opensent', 5 => 'openconfirm', 6 => 'established'];
+	$rows = [];
+
+	foreach ($table as $oid => $val) {
+		if (preg_match('/' . preg_quote($oidTable['bgpPeerState'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$peerIp = $m[1];
+			$rows[$peerIp]['peer_ip'] = $peerIp;
+			$rows[$peerIp]['peer_state_code'] = (int) $val;
+			$rows[$peerIp]['peer_state'] = isset($stateMap[(int) $val]) ? $stateMap[(int) $val] : (string) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['bgpPeerIdentifier'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$peerIp = $m[1];
+			$rows[$peerIp]['peer_ip'] = $peerIp;
+			$rows[$peerIp]['peer_identifier'] = (string) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['bgpPeerRemoteAs'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$peerIp = $m[1];
+			$rows[$peerIp]['peer_ip'] = $peerIp;
+			$rows[$peerIp]['peer_as'] = (int) $val;
+		}
+	}
+
+	return $rows;
+}
+
+function parseOspfNeighbors($table, $oidTable) {
+	$stateMap = [1 => 'down', 2 => 'attempt', 3 => 'init', 4 => 'two-way', 5 => 'exchange-start', 6 => 'exchange', 7 => 'loading', 8 => 'full'];
+	$rows = [];
+
+	foreach ($table as $oid => $val) {
+		if (preg_match('/' . preg_quote($oidTable['ospfNbrIpAddr'], '/') . '\.(\d+\.\d+\.\d+\.\d+)\./', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['peer_ip'] = (string) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['ospfNbrRtrId'], '/') . '\.(\d+\.\d+\.\d+\.\d+)\./', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['peer_identifier'] = (string) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['ospfNbrState'], '/') . '\.(\d+\.\d+\.\d+\.\d+)\./', $oid, $m)) {
+			$idx = $m[1];
+			$code = (int) $val;
+			$rows[$idx]['peer_state_code'] = $code;
+			$rows[$idx]['peer_state'] = isset($stateMap[$code]) ? $stateMap[$code] : (string) $val;
+		}
+	}
+
+	return $rows;
+}
+
+function parseIsisNeighbors($table, $oidTable) {
+	$rows = [];
+
+	foreach ($table as $oid => $val) {
+		if (preg_match('/' . preg_quote($oidTable['isisAdjNeighIpAddr'], '/') . '\..*?(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$peerIp = $m[1];
+			$rows[$peerIp]['peer_ip'] = $peerIp;
+		} elseif (preg_match('/' . preg_quote($oidTable['isisAdjNeighSysId'], '/') . '\.(.+)$/', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['peer_identifier'] = (string) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['isisAdjState'], '/') . '\.(.+)$/', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['peer_state_code'] = (int) $val;
+			$rows[$idx]['peer_state'] = (string) $val;
+		}
+	}
+
+	return $rows;
 }
 
 /**
@@ -401,9 +613,9 @@ function discoverIpNeighbors($host) {
 						continue;
 					}		// Catches HSRP & VRRP sillyness
 
-					if ($subnet1_num < $minCorrelation) {
+					if ($subnet1_num > $minCorrelation) {
 						continue;
-					}		// Catches addresses not meeting min correlation (e.g. /30)
+					}		// Ignore masks that are more specific than configured (e.g. /31 when set to /30)
 					$totalSearched++;
 					// cacti_tag_log("NEIGHBOR POLLER: vrf=$vrf, ipAddress1= $ipAddress1, ipAddress2= $ipAddress2 - Past correlation check. totalSearched: $totalSearched, neighsFound: $neighsFound");
 
@@ -476,6 +688,31 @@ function discoverIpNeighbors($host) {
 				    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())',
 				array_merge(array_slice($hashArray, 1),[$neighHash, $recordHash])
 			)) {
+				upsert_normalized_link([
+					'link_kind' => 'logical',
+					'protocol' => 'ipv4',
+					'host_id' => $myHostId,
+					'hostname' => $hostCache[$myHostId]['description'],
+					'snmp_id' => $mySnmpId,
+					'interface_name' => $intCache[$myHostId][$mySnmpId]['ifDescr'],
+					'interface_alias' => $intCache[$myHostId][$mySnmpId]['ifAlias'],
+					'interface_speed' => isset($intCache[$myHostId][$mySnmpId]['ifHighSpeed']) ? (int) $intCache[$myHostId][$mySnmpId]['ifHighSpeed'] : 0,
+					'interface_ip' => $record['first']['ip_address'],
+					'interface_netmask' => $record['first']['ip_netmask'],
+					'interface_hwaddr' => $intCache[$myHostId][$mySnmpId]['ifHwAddr'],
+					'neighbor_host_id' => $neighHostId,
+					'neighbor_hostname' => $hostCache[$neighHostId]['description'],
+					'neighbor_snmp_id' => $neighSnmpId,
+					'neighbor_interface_name' => $intCache[$neighHostId][$neighSnmpId]['ifDescr'],
+					'neighbor_interface_alias' => $intCache[$neighHostId][$neighSnmpId]['ifAlias'],
+					'neighbor_interface_speed' => isset($intCache[$neighHostId][$neighSnmpId]['ifHighSpeed']) ? (int) $intCache[$neighHostId][$neighSnmpId]['ifHighSpeed'] : 0,
+					'neighbor_interface_ip' => $record['second']['ip_address'],
+					'neighbor_interface_netmask' => $record['second']['ip_netmask'],
+					'neighbor_interface_hwaddr' => $intCache[$neighHostId][$neighSnmpId]['ifHwAddr'],
+					'vrf' => $record['first']['vrf'],
+					'neighbor_hash' => $neighHash,
+					'record_hash' => $recordHash,
+				]);
 				$neighCount++;
 			}
 		}

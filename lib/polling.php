@@ -231,6 +231,24 @@ function get_neighbor_oid_table() {
 		'ipIpAddr'  => '1.3.6.1.2.1.4.20.1.2',
 		'ifNetmask' => '1.3.6.1.2.1.4.20.1.3',
 		'ciscoVrf'  => '1.3.6.1.3.118.1.2.1.1',
+
+		// BGP4-MIB
+		'bgpMibWalk'         => ['1.3.6.1.2.1.15.3.1'],
+		'bgpPeerState'       => '1.3.6.1.2.1.15.3.1.2',
+		'bgpPeerRemoteAs'    => '1.3.6.1.2.1.15.3.1.7',
+		'bgpPeerIdentifier'  => '1.3.6.1.2.1.15.3.1.9',
+
+		// OSPF-MIB
+		'ospfMibWalk'        => ['1.3.6.1.2.1.14.10.1'],
+		'ospfNbrIpAddr'      => '1.3.6.1.2.1.14.10.1.1',
+		'ospfNbrRtrId'       => '1.3.6.1.2.1.14.10.1.3',
+		'ospfNbrState'       => '1.3.6.1.2.1.14.10.1.6',
+
+		// ISIS-MIB (best-effort, vendor support varies)
+		'isisMibWalk'        => ['1.3.6.1.2.1.138.1.6'],
+		'isisAdjState'       => '1.3.6.1.2.1.138.1.6.1.1.2',
+		'isisAdjNeighSysId'  => '1.3.6.1.2.1.138.1.6.1.1.3',
+		'isisAdjNeighIpAddr' => '1.3.6.1.2.1.138.1.6.3.1.3',
 	];
 }
 
@@ -283,6 +301,65 @@ function upsert_xdp_record($hashArray, $neighUptime, $neighHash, $recordHash) {
 }
 
 /**
+ * Upsert normalized connectivity record into plugin_neighbor_link.
+ *
+ * @param array $fields Normalized link field values.
+ * @return bool
+ */
+function upsert_normalized_link($fields) {
+	$defaults = [
+		'link_kind' => 'physical',
+		'protocol' => '',
+		'host_id' => 0,
+		'hostname' => '',
+		'snmp_id' => 0,
+		'interface_name' => '',
+		'interface_alias' => '',
+		'interface_speed' => 0,
+		'interface_ip' => '',
+		'interface_netmask' => '',
+		'interface_hwaddr' => '',
+		'neighbor_host_id' => 0,
+		'neighbor_hostname' => '',
+		'neighbor_snmp_id' => 0,
+		'neighbor_interface_name' => '',
+		'neighbor_interface_alias' => '',
+		'neighbor_interface_speed' => 0,
+		'neighbor_interface_ip' => '',
+		'neighbor_interface_netmask' => '',
+		'neighbor_interface_hwaddr' => '',
+		'vrf' => '',
+		'neighbor_hash' => '',
+		'record_hash' => '',
+		'metadata_json' => '',
+	];
+
+	$f = array_merge($defaults, $fields);
+
+	if ($f['protocol'] === '' || $f['record_hash'] === '' || $f['neighbor_hash'] === '') {
+		return false;
+	}
+
+	return db_execute_prepared('REPLACE INTO `plugin_neighbor_link`
+		(`link_kind`, `protocol`, `host_id`, `hostname`, `snmp_id`,
+		`interface_name`, `interface_alias`, `interface_speed`, `interface_ip`, `interface_netmask`, `interface_hwaddr`,
+		`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`,
+		`neighbor_interface_name`, `neighbor_interface_alias`, `neighbor_interface_speed`,
+		`neighbor_interface_ip`, `neighbor_interface_netmask`, `neighbor_interface_hwaddr`,
+		`vrf`, `neighbor_hash`, `record_hash`, `metadata_json`, `last_seen`)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())',
+		[
+			$f['link_kind'], $f['protocol'], $f['host_id'], $f['hostname'], $f['snmp_id'],
+			$f['interface_name'], $f['interface_alias'], $f['interface_speed'], $f['interface_ip'], $f['interface_netmask'], $f['interface_hwaddr'],
+			$f['neighbor_host_id'], $f['neighbor_hostname'], $f['neighbor_snmp_id'],
+			$f['neighbor_interface_name'], $f['neighbor_interface_alias'], $f['neighbor_interface_speed'],
+			$f['neighbor_interface_ip'], $f['neighbor_interface_netmask'], $f['neighbor_interface_hwaddr'],
+			$f['vrf'], $f['neighbor_hash'], $f['record_hash'], $f['metadata_json']
+		]
+	);
+}
+
+/**
  * Prepare fields array into ordered hashArray and upsert record
  * Returns boolean result of DB upsert
  */
@@ -310,7 +387,34 @@ function prepare_and_upsert_xdp($fields) {
 		? max(0, (int)$fields['neighbor_last_changed_seconds'])
 		: 0;
 
-	return upsert_xdp_record($hashArray, $neighUptime, $neighHash, $recordHash);
+	$ok = upsert_xdp_record($hashArray, $neighUptime, $neighHash, $recordHash);
+
+	if ($ok) {
+		upsert_normalized_link([
+			'link_kind' => 'physical',
+			'protocol' => $fields['type'],
+			'host_id' => $fields['host_id'],
+			'hostname' => $fields['hostname'],
+			'snmp_id' => $fields['snmp_id'],
+			'interface_name' => $fields['interface_name'],
+			'interface_alias' => $fields['interface_alias'],
+			'interface_speed' => (int) $fields['interface_speed'],
+			'interface_ip' => $fields['interface_ip'],
+			'interface_hwaddr' => $fields['interface_hwaddr'],
+			'neighbor_host_id' => (int) $fields['neighbor_host_id'],
+			'neighbor_hostname' => $fields['neighbor_hostname'],
+			'neighbor_snmp_id' => (int) $fields['neighbor_snmp_id'],
+			'neighbor_interface_name' => $fields['neighbor_interface_name'],
+			'neighbor_interface_alias' => $fields['neighbor_interface_alias'],
+			'neighbor_interface_speed' => (int) $fields['neighbor_interface_speed'],
+			'neighbor_interface_ip' => $fields['neighbor_interface_ip'],
+			'neighbor_interface_hwaddr' => $fields['neighbor_interface_hwaddr'],
+			'neighbor_hash' => $neighHash,
+			'record_hash' => $recordHash,
+		]);
+	}
+
+	return $ok;
 }
 
 /**

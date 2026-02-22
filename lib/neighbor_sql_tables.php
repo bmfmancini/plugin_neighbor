@@ -215,6 +215,70 @@ function neighbor_setup_table() {
               ) DEFAULT CHARSET=utf8mb4
     ");
 
+	// Table: plugin_neighbor_routing
+	db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor_routing` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `type` enum('bgp','ospf','isis') NOT NULL,
+                `host_id` int(11) NOT NULL,
+                `hostname` varchar(64) NOT NULL,
+                `peer_ip` varchar(45) NOT NULL,
+                `peer_identifier` varchar(45) NOT NULL DEFAULT '',
+                `peer_as` int(10) unsigned NOT NULL DEFAULT 0,
+                `peer_state` varchar(32) NOT NULL DEFAULT '',
+                `peer_state_code` tinyint(3) unsigned NOT NULL DEFAULT 0,
+                `neighbor_host_id` int(11) NOT NULL DEFAULT 0,
+                `neighbor_hostname` varchar(64) NOT NULL DEFAULT '',
+                `record_hash` char(32) NOT NULL,
+                `last_seen` datetime NOT NULL,
+               PRIMARY KEY (`id`),
+               UNIQUE KEY `record_hash` (`record_hash`),
+               KEY `type` (`type`),
+               KEY `host_id` (`host_id`),
+               KEY `peer_ip` (`peer_ip`),
+               KEY `neighbor_host_id` (`neighbor_host_id`),
+               KEY `last_seen` (`last_seen`)
+              ) DEFAULT CHARSET=utf8mb4
+    ");
+
+	// Table: plugin_neighbor_link (normalized connectivity graph)
+	db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor_link` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `link_kind` enum('physical','logical') NOT NULL,
+                `protocol` varchar(16) NOT NULL,
+                `host_id` int(11) NOT NULL,
+                `hostname` varchar(64) NOT NULL,
+                `snmp_id` int(11) NOT NULL DEFAULT 0,
+                `interface_name` varchar(64) NOT NULL DEFAULT '',
+                `interface_alias` varchar(255) NOT NULL DEFAULT '',
+                `interface_speed` int(11) NOT NULL DEFAULT 0,
+                `interface_ip` varchar(45) NOT NULL DEFAULT '',
+                `interface_netmask` varchar(45) NOT NULL DEFAULT '',
+                `interface_hwaddr` varchar(32) NOT NULL DEFAULT '',
+                `neighbor_host_id` int(11) NOT NULL DEFAULT 0,
+                `neighbor_hostname` varchar(64) NOT NULL DEFAULT '',
+                `neighbor_snmp_id` int(11) NOT NULL DEFAULT 0,
+                `neighbor_interface_name` varchar(64) NOT NULL DEFAULT '',
+                `neighbor_interface_alias` varchar(255) NOT NULL DEFAULT '',
+                `neighbor_interface_speed` int(11) NOT NULL DEFAULT 0,
+                `neighbor_interface_ip` varchar(45) NOT NULL DEFAULT '',
+                `neighbor_interface_netmask` varchar(45) NOT NULL DEFAULT '',
+                `neighbor_interface_hwaddr` varchar(32) NOT NULL DEFAULT '',
+                `vrf` varchar(64) NOT NULL DEFAULT '',
+                `neighbor_hash` char(32) NOT NULL,
+                `record_hash` char(32) NOT NULL,
+                `metadata_json` text,
+                `last_seen` datetime NOT NULL,
+               PRIMARY KEY (`id`),
+               UNIQUE KEY `record_hash` (`record_hash`),
+               KEY `protocol` (`protocol`),
+               KEY `link_kind` (`link_kind`),
+               KEY `host_id` (`host_id`),
+               KEY `neighbor_host_id` (`neighbor_host_id`),
+               KEY `neighbor_hash` (`neighbor_hash`),
+               KEY `last_seen` (`last_seen`)
+              ) DEFAULT CHARSET=utf8mb4
+    ");
+
 	// Table: plugin_neighbor_graph_rules
 
 	db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor_graph_rules` (

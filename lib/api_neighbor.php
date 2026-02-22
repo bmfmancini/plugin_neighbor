@@ -1492,10 +1492,116 @@ function get_neighbor_objects_by_rule($rule_id, $host_filter = '', $edge_filter 
 	if (!$rule) {
 		return [];
 	}
-	$sql_query = neighbor_build_data_query_sql($rule, $host_filter, $edge_filter);
-	$results   = db_fetch_assoc($sql_query);
+
+	$has_link_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_link'");
+	if (!$has_link_table) {
+		$sql_query = neighbor_build_data_query_sql($rule, $host_filter, $edge_filter);
+		$results   = db_fetch_assoc($sql_query);
+
+		return db_fetch_hash($results, ['hostname', 'neighbor_hostname', 'interface_name']);
+	}
+
+	$protocols = get_protocols_for_neighbor_rule($rule);
+	$where     = [];
+	$params    = [];
+
+	if (cacti_sizeof($protocols)) {
+		$where[] = 'protocol IN (' . implode(',', array_fill(0, cacti_sizeof($protocols), '?')) . ')';
+		$params  = array_merge($params, $protocols);
+	}
+
+	if ($host_filter !== '') {
+		$where[] = '(hostname LIKE ? OR neighbor_hostname LIKE ?)';
+		$params[] = '%' . $host_filter . '%';
+		$params[] = '%' . $host_filter . '%';
+	}
+
+	if ($edge_filter !== '') {
+		$where[] = '(interface_name LIKE ? OR neighbor_interface_name LIKE ? OR protocol LIKE ?)';
+		$params[] = '%' . $edge_filter . '%';
+		$params[] = '%' . $edge_filter . '%';
+		$params[] = '%' . $edge_filter . '%';
+	}
+
+	$sql = 'SELECT
+			id,
+			protocol AS type,
+			host_id,
+			hostname,
+			snmp_id,
+			interface_name,
+			interface_alias,
+			interface_speed,
+			interface_ip,
+			interface_netmask,
+			interface_hwaddr,
+			neighbor_host_id,
+			neighbor_hostname,
+			neighbor_snmp_id,
+			neighbor_interface_name,
+			neighbor_interface_alias,
+			neighbor_interface_speed,
+			neighbor_interface_ip,
+			neighbor_interface_netmask,
+			neighbor_interface_hwaddr,
+			neighbor_hash,
+			record_hash,
+			last_seen,
+			link_kind,
+			protocol
+		FROM plugin_neighbor_link';
+
+	if (cacti_sizeof($where)) {
+		$sql .= ' WHERE ' . implode(' AND ', $where);
+	}
+
+	$results = cacti_sizeof($params) ? db_fetch_assoc_prepared($sql, $params) : db_fetch_assoc($sql);
 
 	return db_fetch_hash($results, ['hostname', 'neighbor_hostname', 'interface_name']);
+}
+
+/**
+ * Convert neighbor rule options to protocol list for normalized link querying.
+ *
+ * @param  array $rule Neighbor rule row.
+ * @return array
+ */
+function get_protocols_for_neighbor_rule($rule) {
+	$options = isset($rule['neighbor_options']) ? explode(',', $rule['neighbor_options']) : [];
+	$options = array_filter(array_map('trim', $options));
+
+	if (!cacti_sizeof($options)) {
+		return ['cdp', 'lldp', 'ipv4', 'bgp', 'ospf', 'isis'];
+	}
+
+	$protocols = [];
+	foreach ($options as $option) {
+		switch ($option) {
+			case 'xdp':
+				$protocols[] = 'cdp';
+				$protocols[] = 'lldp';
+				break;
+			case 'ipv4':
+				$protocols[] = 'ipv4';
+				break;
+			case 'routing':
+				$protocols[] = 'bgp';
+				$protocols[] = 'ospf';
+				$protocols[] = 'isis';
+				break;
+			case 'bgp':
+			case 'ospf':
+			case 'isis':
+			case 'cdp':
+			case 'lldp':
+				$protocols[] = $option;
+				break;
+		}
+	}
+
+	$protocols = array_values(array_unique($protocols));
+
+	return cacti_sizeof($protocols) ? $protocols : ['cdp', 'lldp', 'ipv4', 'bgp', 'ospf', 'isis'];
 }
 
 /**
@@ -1643,7 +1749,12 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
 					$length = $length * 1.5;
 				}
 
-				$label = get_speed_label($rec3['interface_speed']);
+				$protocol = isset($rec3['type']) ? strtolower((string) $rec3['type']) : '';
+				$link_kind = isset($rec3['link_kind']) ? (string) $rec3['link_kind'] : '';
+				$label = get_speed_label(isset($rec3['interface_speed']) ? $rec3['interface_speed'] : 0);
+				if ($label === null || $label === '') {
+					$label = strtoupper($protocol);
+				}
 				$title = sprintf('%s - %s to %s - %s',
 					$rec3['hostname'],
 					$rec3['interface_name'],
@@ -1707,6 +1818,8 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
 					// also include source/target for clients that expect that naming
 					'source'    => (int) $from,
 					'target'    => $to_id,
+					'protocol'  => $protocol,
+					'type'      => ($link_kind !== '' ? $link_kind : (in_array($protocol, ['bgp', 'ospf', 'isis'], true) ? 'logical' : 'physical')),
 					'label'     => $label,
 					'title'     => $title,
 					'from_label'=> $rec3['hostname'],

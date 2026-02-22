@@ -104,6 +104,8 @@ function plugin_neighbor_uninstall() {
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_xdp`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_ipv4`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_ipv4_cache`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_routing`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_link`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_processes`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_log`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_edge`');
