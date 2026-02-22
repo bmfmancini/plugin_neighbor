@@ -8,7 +8,8 @@ var tooltips = (typeof tooltips !== "undefined" && Array.isArray(tooltips)) ? to
 
 var mapOptions = (typeof mapOptions !== "undefined" && mapOptions) ? mapOptions : {
 	ajax: true,
-	refreshInterval: 30000,
+	// Disable auto-refresh by default while debugging backend stability.
+	refreshInterval: 0,
 	selectedHosts: []
 };
 

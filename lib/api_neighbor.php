@@ -1583,9 +1583,7 @@ function create_map_nodes_from_hosts($hosts_arr, $sites, $res_x, $res_y) {
 		$x             = $screen_coords['x'];
 		$y             = $screen_coords['y'];
 
-		error_log("$label: $res_x,$res_y => $lat,$lng => $x, $y");
-
-		$nodes[] = [
+			$nodes[] = [
 			'id'    => $host_id,
 			'label' => $label,
 			'x'     => $x,
@@ -1684,8 +1682,8 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
 						foreach ($ip_candidates as $ip) {
 							$ip = trim($ip);
 							if ($ip === '') continue;
-							// Check plugin cache for a host mapping
-							$candidate = db_fetch_cell_prepared('SELECT host_id FROM plugin_neighbor_ipv4_cache WHERE interface_ip = ? OR neighbor_interface_ip = ? OR host_ip = ? LIMIT 1', [$ip, $ip, $ip]);
+							// Check plugin cache for a host mapping using the cached address column.
+							$candidate = db_fetch_cell_prepared('SELECT host_id FROM plugin_neighbor_ipv4_cache WHERE ip_address = ? LIMIT 1', [$ip]);
 							if ($candidate && is_numeric($candidate)) {
 								$resolved_by_ip = (int) $candidate;
 								break;
@@ -1739,6 +1737,8 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
  * @return string|void JSON response or void if ajax is true
  */
 function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
+	$trace_start = microtime(true);
+
 	// Retrieve and validate parameters
 	$rule_id     = $rule_id ? $rule_id : (isset_request_var('rule_id') ? get_request_var('rule_id') : '');
 	$ajax        = isset_request_var('ajax') ? get_request_var('ajax') : $ajax;
@@ -1751,6 +1751,7 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 
 	// Get neighbor objects and (optionally) filter by selected hosts
 	$neighbor_objects = get_neighbor_objects_by_rule($rule_id, $host_filter, $edge_filter);
+	$trace_after_neighbors = microtime(true);
 
 	// If client supplied selected_hosts (comma-separated ids), filter neighbor_objects to only include
 	// relationships where host_id or neighbor_host_id matches one of the selected IDs.
@@ -1778,7 +1779,6 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	$sites            = get_site_coords($hosts_arr);
 
 	// Check for stored map positions or generate new ones
-	error_log("Looking for saved map positions for user: $user_id, map: $rule_id");
 	$stored_data = get_stored_map_positions($user_id, $rule_id);
 
 	if (count($stored_data['nodes']) > 0) {
@@ -1788,13 +1788,16 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	} else {
 		$projected = create_map_nodes_from_hosts($hosts_arr, $sites, $res_x, $res_y);
 	}
+	$trace_after_nodes = microtime(true);
 
 	// Create edges with poller data
 	$edge_data = get_edges_poller($rule_id);
 	$edges     = create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $edge_data);
+	$trace_after_edges = microtime(true);
 
 	// Store edges in database for poller integration
 	update_edges_db($rule_id, $edges);
+	$trace_after_edge_store = microtime(true);
 
 	// Ensure any synthetic nodes referenced by edges are present in the projected nodes list
 	$existing_ids = [];
@@ -1832,6 +1835,22 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	$query_callback = preg_replace('/[^a-zA-Z0-9_]/', '', $query_callback);
 	$data['nodes']  = $projected;
 	$data['edges']  = $edges;
+	$trace_total = microtime(true) - $trace_start;
+
+	if ($trace_total > 1.0) {
+		cacti_log(sprintf(
+			'NEIGHBOR MAP TRACE: rule=%s hosts=%d nodes=%d edges=%d timings(s) objects=%.3f nodes=%.3f edges=%.3f edge_store=%.3f total=%.3f',
+			$rule_id,
+			cacti_sizeof($hosts_arr),
+			cacti_sizeof($projected),
+			cacti_sizeof($edges),
+			$trace_after_neighbors - $trace_start,
+			$trace_after_nodes - $trace_after_neighbors,
+			$trace_after_edges - $trace_after_nodes,
+			$trace_after_edge_store - $trace_after_edges,
+			$trace_total
+		), true, 'NEIGHBOR');
+	}
 
 	$jsonp = sprintf('%s({"Response":[%s]})', $query_callback, json_encode($data, JSON_PRETTY_PRINT));
 	$json  = json_encode($data, JSON_PRETTY_PRINT);
@@ -1847,7 +1866,7 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 // Update the plugin_neighbor_edge table
 
 function update_edges_db($rule_id,$edges) {
-	db_execute_prepared('DELETE FROM plugin_neighbor_edge where rule_id = ? and edge_updated < DATE_SUB(NOW(), INTERVAL 1 DAY)',[1]);
+	db_execute_prepared('DELETE FROM plugin_neighbor_edge where rule_id = ? and edge_updated < DATE_SUB(NOW(), INTERVAL 1 DAY)',[$rule_id]);
 
 	foreach ($edges as $edge) {
 		$edge_json = json_encode($edge);
@@ -1859,9 +1878,19 @@ function update_edges_db($rule_id,$edges) {
 
 // Fetch the latest poller results from plugin_neighbor_edge
 function get_edges_poller($rule_id) {
-	$results = db_fetch_assoc_prepared('SELECT * from plugin_neighbor_edge
-									    LEFT JOIN plugin_neighbor_poller_delta on plugin_neighbor_edge.rrd_file = plugin_neighbor_poller_delta.rrd_file
-										WHERE plugin_neighbor_edge.rule_id =?',[$rule_id]);
+	$results = db_fetch_assoc_prepared('SELECT
+			plugin_neighbor_edge.from_id,
+			plugin_neighbor_edge.to_id,
+			plugin_neighbor_edge.rrd_file,
+			plugin_neighbor_poller_delta.key_name,
+			plugin_neighbor_poller_delta.delta,
+			plugin_neighbor_poller_delta.timestamp
+		FROM plugin_neighbor_edge
+		LEFT JOIN plugin_neighbor_poller_delta
+			ON plugin_neighbor_edge.rrd_file = plugin_neighbor_poller_delta.rrd_file
+			AND plugin_neighbor_poller_delta.timestamp >= ?
+		WHERE plugin_neighbor_edge.rule_id = ?
+		ORDER BY plugin_neighbor_poller_delta.timestamp ASC', [time() - 900, $rule_id]);
 	$hash = db_fetch_hash($results,['from_id', 'to_id', 'rrd_file', 'key_name']);
 
 	return ($hash);

@@ -67,8 +67,6 @@ function neighbor_poller_output(&$rrd_update_array) {
 			continue;
 		}
 
-		$rec_json = json_encode($rec);
-
 		foreach ($rec['times'] as $time => $data) {
 			foreach ($data as $key => $counter) {
 				db_execute_prepared("INSERT INTO plugin_neighbor_poller_output
@@ -80,10 +78,6 @@ function neighbor_poller_output(&$rrd_update_array) {
 			}
 		}
 	}
-
-	db_execute_prepared('DELETE FROM plugin_neighbor_poller_output
-		WHERE timestamp < ?',
-		[time() - 900]);
 
 	return $rrd_update_array;
 }
@@ -99,65 +93,108 @@ function process_poller_deltas() {
 		VALUES (NOW(), ?)',
 		['process_poller_deltas() is starting.']);
 
-	$results = db_fetch_assoc('SELECT * FROM plugin_neighbor_poller_output');
+	$poller_interval = (int)read_config_option('poller_interval');
+	if ($poller_interval <= 0) {
+		$poller_interval = 300;
+	}
 
-	if (!is_array($results)) {
+	$cutoff = time() - max(900, $poller_interval * 5);
+
+	// Temporarily disabled for troubleshooting deletion-related instability.
+	// db_execute_prepared('DELETE FROM plugin_neighbor_poller_output WHERE timestamp < ? LIMIT 10000', [$cutoff]);
+
+	$rrdFiles = db_fetch_assoc_prepared(
+		'SELECT DISTINCT rrd_file
+		FROM plugin_neighbor_poller_output
+		WHERE timestamp >= ?',
+		[$cutoff]
+	);
+
+	if (!is_array($rrdFiles) || !cacti_sizeof($rrdFiles)) {
 		return;
 	}
 
-	$hash = db_fetch_hash($results,['rrd_file', 'timestamp', 'key_name']);
+	foreach ($rrdFiles as $rrdRec) {
+		$rrdFile = isset($rrdRec['rrd_file']) ? $rrdRec['rrd_file'] : '';
 
-	if (!is_array($hash)) {
-		return;
-	}
+		if ($rrdFile === '') {
+			continue;
+		}
 
-	foreach ($hash as $rrdFile => $data) {
-		cacti_log("process_poller_deltas() is processing RRD:$rrdFile,with data:" . print_r($data,1), true, 'NEIGHBOR POLLER');
+		$timestamps = db_fetch_assoc_prepared(
+			'SELECT DISTINCT timestamp
+			FROM plugin_neighbor_poller_output
+			WHERE rrd_file = ?
+			ORDER BY timestamp DESC
+			LIMIT 2',
+			[$rrdFile]
+		);
 
-		$timestamps = array_keys($data);
-		rsort($timestamps);
+		if (!is_array($timestamps) || cacti_sizeof($timestamps) < 2) {
+			continue;
+		}
 
-		db_execute_prepared('INSERT INTO plugin_neighbor_log (logtime, message)
-			VALUES (NOW(), ?)',
-			['process_poller_deltas() is running. Timestamps:' . print_r($timestamps,1)]);
+		$now    = (int)$timestamps[0]['timestamp'];
+		$before = (int)$timestamps[1]['timestamp'];
 
-		if (sizeof($timestamps) >= 2) {
-			$now             = $timestamps[0];
-			$before          = $timestamps[1];
-			$timeDelta       = $now - $before;
-			$poller_interval = read_config_option('poller_interval') ? read_config_option('poller_interval') : 300;
+		if ($before <= 0 || $now <= $before) {
+			continue;
+		}
 
-			// Normalise these down to a poller cycle boundary to group them together
-			$timestamp_cycle = intval($now / $poller_interval) * $poller_interval;
+		$timeDelta = $now - $before;
 
-			cacti_log("process_poller_deltas(): now:$now, before:$before, Hash:" . print_r($data[$now],true), true, 'NEIGHBOR POLLER');
+		// Normalise these down to a poller cycle boundary to group them together.
+		$timestamp_cycle = (int)(intval($now / $poller_interval) * $poller_interval);
 
-			db_execute_prepared('INSERT INTO plugin_neighbor_log (logtime, message)
-				VALUES (NOW(), ?)',
-				["Now:$now, Before:$before, Hash:" . print_r($data[$now],true)]);
+		cacti_log("process_poller_deltas(): now:$now, before:$before, rrd:$rrdFile", true, 'NEIGHBOR POLLER');
 
-			foreach ($data[$now] as $key => $record) {
-				db_execute_prepared('INSERT INTO plugin_neighbor_log (logtime, message)
-					VALUES (NOW(), ?)',
-					["RRD:$rrdFile, data now:" . print_r($data[$now][$key],true)]);
+		$nowRows = db_fetch_assoc_prepared(
+			'SELECT key_name, value
+			FROM plugin_neighbor_poller_output
+			WHERE rrd_file = ? AND timestamp = ?',
+			[$rrdFile, $now]
+		);
 
-				db_execute_prepared('INSERT INTO plugin_neighbor_log (logtime, message)
-					VALUES (NOW(), ?)',
-					["RRD:$rrdFile, data before:" . print_r($data[$now][$key],true)]);
+		$beforeRows = db_fetch_assoc_prepared(
+			'SELECT key_name, value
+			FROM plugin_neighbor_poller_output
+			WHERE rrd_file = ? AND timestamp = ?',
+			[$rrdFile, $before]
+		);
 
-				$delta = sprintf('%.2f',($data[$now][$key]['value'] - $data[$before][$key]['value']) / $timeDelta);
+		if (!is_array($nowRows) || !is_array($beforeRows) || !cacti_sizeof($nowRows) || !cacti_sizeof($beforeRows)) {
+			continue;
+		}
 
-				cacti_log("process_poller_deltas(): RRD: $rrdFile, Key: $key, Delta: $delta", true, 'NEIGHBOR POLLER');
+		$beforeByKey = [];
+		foreach ($beforeRows as $row) {
+			$key = isset($row['key_name']) ? $row['key_name'] : '';
 
-				db_execute_prepared("INSERT INTO plugin_neighbor_poller_delta
-					VALUES ('',?,?,?,?,?)",
-					[$rrdFile, $now, $timestamp_cycle, $key, $delta]);
+			if ($key !== '') {
+				$beforeByKey[$key] = isset($row['value']) ? (float)$row['value'] : 0.0;
 			}
+		}
+
+		foreach ($nowRows as $row) {
+			$key = isset($row['key_name']) ? $row['key_name'] : '';
+
+			if ($key === '' || !isset($beforeByKey[$key])) {
+				continue;
+			}
+
+			$nowValue = isset($row['value']) ? (float)$row['value'] : 0.0;
+			$delta    = sprintf('%.2f', ($nowValue - $beforeByKey[$key]) / $timeDelta);
+
+			cacti_log("process_poller_deltas(): RRD: $rrdFile, Key: $key, Delta: $delta", true, 'NEIGHBOR POLLER');
+
+			db_execute_prepared('INSERT INTO plugin_neighbor_poller_delta
+				VALUES (\'\',?,?,?,?,?)',
+				[$rrdFile, $now, $timestamp_cycle, $key, $delta]);
 		}
 	}
 
-	// Nothing older than 15 minutes
-	db_execute_prepared('DELETE FROM plugin_neighbor_poller_delta where timestamp < ?', [time() - 900]);
+	// Temporarily disabled for troubleshooting deletion-related instability.
+	// db_execute_prepared('DELETE FROM plugin_neighbor_poller_delta WHERE timestamp < ? LIMIT 10000', [time() - 900]);
 }
 
 /**
@@ -269,8 +306,11 @@ function prepare_and_upsert_xdp($fields) {
 
 	$recordHash = compute_record_hash($hashArray);
 	$neighHash  = compute_neigh_hash($fields['hostname'], $fields['neighbor_hostname'], $fields['interface_name'], $fields['neighbor_interface_name']);
+	$neighUptime = (isset($fields['neighbor_last_changed_seconds']) && is_numeric($fields['neighbor_last_changed_seconds']))
+		? max(0, (int)$fields['neighbor_last_changed_seconds'])
+		: 0;
 
-	return upsert_xdp_record($hashArray, $fields['neighbor_last_changed_seconds'], $neighHash, $recordHash);
+	return upsert_xdp_record($hashArray, $neighUptime, $neighHash, $recordHash);
 }
 
 /**
@@ -340,7 +380,8 @@ function discoverCdpNeighbors($host) {
 	$cdpTable   = neighbor_snmp_walk_and_flatten($host, $oidTable['cdpMibWalk']);
 	$neighCount = 0;
 
-	$cdpParsed = [];
+	$cdpParsed               = [];
+	$missingLocalInterfaces  = [];
 
 	foreach ($cdpTable as $oid => $val) {
 		if (preg_match('/' . $oidTable['cdpCacheDeviceId'] . '\.(\d+\.\d+)/',$oid,$matches)) {
@@ -380,9 +421,19 @@ function discoverCdpNeighbors($host) {
 		$myIntRecord   = findCactiInterface($host['id'],'',$snmpId);
 
 		if (!$myIntRecord) {
-			debug("Error: Couldn't own find Cacti interface record for host=$myHostId, snmp_index=$snmpId");
+			if (!isset($missingLocalInterfaces[$snmpId])) {
+				debug("Warning: Could not find Cacti interface record for host=$myHostId, snmp_index=$snmpId. Using fallback interface values.");
+				$missingLocalInterfaces[$snmpId] = true;
+			}
 
-			continue;
+			$myIntRecord = [
+				'ifDescr' => 'ifIndex:' . $snmpId,
+				'ifAlias' => '',
+				'ifHighSpeed' => '',
+				'ifOperStatus' => '',
+				'ifIP' => '',
+				'ifHwAddr' => '',
+			];
 		}
 
 		$myIp			  = isset($host['hostname']) ? $host['hostname'] : '';
@@ -398,7 +449,7 @@ function discoverCdpNeighbors($host) {
 		$neighPlatform 	  = $record['platform'];
 		$neighSoftware 	  = $record['version'];
 		$neighDuplex 	    = $record['duplex'];
-		$neighUptime 	    = $record['uptime'];
+		$neighUptime 	    = (isset($record['uptime']) && is_numeric($record['uptime'])) ? (int)$record['uptime'] : 0;
 		$neighInterface 	 = $record['interface'];
 		$neighRecord      = findCactiHost($neighHostname);
 		$neighHostId      = isset($neighRecord[$neighHostname]['id']) ? $neighRecord[$neighHostname]['id'] : '';
@@ -481,12 +532,13 @@ function discoverCdpNeighbors($host) {
 function discoverLldpNeighbors($host) {
 	$oidTable = get_neighbor_oid_table();
 	debug('Processing LLDP Neighbors: ' . $host['description']);
-	$neighCount = 0;
-	$hostId     = $host['id'];
-	$lldpTable  = neighbor_snmp_walk_and_flatten($host, $oidTable['lldpMibWalk']);
+	$neighCount             = 0;
+	$hostId                 = $host['id'];
+	$lldpTable              = neighbor_snmp_walk_and_flatten($host, $oidTable['lldpMibWalk']);
 
 	$lldpParsed = [];
 	$lldpToSnmp = [];
+	$missingLocalInterfaces = [];
 
 	foreach ($lldpTable as $oid => $val) {
 		if (preg_match('/' . $oidTable['lldpLocPortDesc'] . '\.(\d+)/',$oid,$matches)) {
@@ -522,9 +574,19 @@ function discoverLldpNeighbors($host) {
 		$myIntRecord   = findCactiInterface($host['id'],'',$snmpId);
 
 		if (!$myIntRecord) {
-			debug("Error: Couldn't own find Cacti interface record for host=$myHostId, snmp_index=$snmpId");
+			if (!isset($missingLocalInterfaces[$snmpId])) {
+				debug("Warning: Could not find Cacti interface record for host=$myHostId, snmp_index=$snmpId. Using fallback interface values.");
+				$missingLocalInterfaces[$snmpId] = true;
+			}
 
-			continue;
+			$myIntRecord = [
+				'ifDescr' => 'ifIndex:' . $snmpId,
+				'ifAlias' => '',
+				'ifHighSpeed' => '',
+				'ifOperStatus' => '',
+				'ifIP' => '',
+				'ifHwAddr' => '',
+			];
 		}
 
 		$myIp         = isset($host['hostname']) ? $host['hostname'] : '';
@@ -540,7 +602,7 @@ function discoverLldpNeighbors($host) {
 		$neighPlatform    = $record['platform'];
 		$neighSoftware    = $record['version'];
 		$neighDuplex      = $record['duplex'] ?? '';
-		$neighUptime      = $record['uptime'] ?? '';
+		$neighUptime      = (isset($record['uptime']) && is_numeric($record['uptime'])) ? (int)$record['uptime'] : 0;
 		$neighInterface   = $record['interface'] ?? '';
 		$neighRecord      = findCactiHost($neighHostname);
 		$neighHostId      = isset($neighRecord[$neighHostname]['id']) ? $neighRecord[$neighHostname]['id'] : '';
@@ -619,19 +681,38 @@ function discoverLldpNeighbors($host) {
  * Retrieves IP address and subnet information that was collected via SNMP
  * for use in finding IP-based neighbor relationships.
  *
- * @param  int|null $hostId Optional host ID to filter results
+ * @param  int|null $hostId  Optional host ID to filter results
+ * @param  array    $vrfList Optional VRF list to filter results
  * @return array    Nested array indexed by [vrf][ip_address]
  */
-function getIpv4Cache($hostId = null) {
-	if ($hostId) {
-		$query  = db_fetch_assoc_prepared('SELECT * from plugin_neighbor_ipv4_cache where host_id=?',[$hostId]);
-		$result = db_fetch_hash($query,['vrf', 'ip_address']);
+function getIpv4Cache($hostId = null, $vrfList = []) {
+	$params = [];
+	$where  = [];
 
-		return ($result);
-	} else {
-		$query  = db_fetch_assoc('SELECT * from plugin_neighbor_ipv4_cache');
-		$result = db_fetch_hash($query,['vrf', 'ip_address']);
-
-		return ($result);
+	if ($hostId !== null && $hostId !== '') {
+		$where[]  = 'host_id = ?';
+		$params[] = $hostId;
 	}
+
+	if (is_array($vrfList) && cacti_sizeof($vrfList)) {
+		$vrfList = array_values(array_unique(array_map('strval', $vrfList)));
+
+		if (cacti_sizeof($vrfList)) {
+			$placeholders = implode(',', array_fill(0, cacti_sizeof($vrfList), '?'));
+			$where[]      = 'vrf IN (' . $placeholders . ')';
+			$params       = array_merge($params, $vrfList);
+		}
+	}
+
+	$sql = 'SELECT * from plugin_neighbor_ipv4_cache';
+
+	if (cacti_sizeof($where)) {
+		$sql .= ' WHERE ' . implode(' AND ', $where);
+	}
+
+	$query = cacti_sizeof($params)
+		? db_fetch_assoc_prepared($sql, $params)
+		: db_fetch_assoc($sql);
+
+	return db_fetch_hash($query, ['vrf', 'ip_address']);
 }
