@@ -43,12 +43,12 @@ function renderNeighborTabs() {
 
 	const currentAction = getCurrentAction();
 	holder.innerHTML = [
-		"<div style='display:flex;gap:8px;flex-wrap:wrap;padding:8px 0;'>",
+		"<div class='neighbor-tabs'>",
 		tabs.map(function(tab) {
 			const active = tab.content === currentAction;
-			const activeStyle = active ? 'background:#2d6cdf;color:#fff;border-color:#2d6cdf;' : 'background:#f4f4f4;color:#333;border-color:#ccc;';
-			return "<button type='button' data-action='" + tab.content + "' style='border:1px solid;padding:6px 10px;border-radius:4px;cursor:pointer;" + activeStyle + "'>" +
-				"<span class='" + tab.icon + "' style='padding-right:5px'></span>" + tab.text +
+			const activeClass = active ? ' is-active' : '';
+			return "<button type='button' class='neighbor-tab" + activeClass + "' data-action='" + tab.content + "'>" +
+				"<span class='" + tab.icon + " neighbor-tab-icon'></span>" + tab.text +
 			"</button>";
 		}).join(''),
 		'</div>'

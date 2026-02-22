@@ -144,10 +144,10 @@ function display_routing_neighbors() {
 	html_start_box(__('Routing Protocol Neighbors', 'neighbor'), '100%', '', '3', 'center', '');
 
 	print '<tr><td>';
-	print '<div style="padding: 20px; text-align: center;">';
+	print '<div class="neighbor-routing-summary">';
 	print '<h3>' . __('Routing Protocol Neighbor Discovery', 'neighbor') . '</h3>';
 	print '<p>' . __('This feature displays neighbors discovered via routing protocols:', 'neighbor') . '</p>';
-	print '<ul style="text-align: left; display: inline-block;">';
+	print '<ul class="neighbor-routing-list">';
 	print '<li>' . __('OSPF (Open Shortest Path First)', 'neighbor') . '</li>';
 	print '<li>' . __('BGP (Border Gateway Protocol)', 'neighbor') . '</li>';
 	print '<li>' . __('IS-IS (Intermediate System to Intermediate System)', 'neighbor') . '</li>';

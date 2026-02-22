@@ -36,7 +36,15 @@ include_once($config['base_path'] . '/plugins/neighbor/lib/api_neighbor.php');
  */
 function neighbor_tabs() {
 	global $config;
-	printf("<link rel='stylesheet' type='text/css' href='%s'>", $config['url_path'] . 'plugins/neighbor/css/neighbor_banner.css');
+
+	$selectedTheme = function_exists('get_selected_theme') ? get_selected_theme() : 'modern';
+
+	print "<link type='text/css' href='" . $config['url_path'] . "plugins/neighbor/themes/common.css' rel='stylesheet'>";
+
+	if (file_exists($config['base_path'] . '/plugins/neighbor/themes/' . $selectedTheme . '.css')) {
+		print "<link type='text/css' href='" . $config['url_path'] . 'plugins/neighbor/themes/' . $selectedTheme . ".css' rel='stylesheet'>";
+	}
+
 	printf("<script type='text/javascript' src='%s'></script>", $config['url_path'] . 'plugins/neighbor/js/neighbor.js');
 	print "<div id='neighbor_tabs'></div>";
 }
