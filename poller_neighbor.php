@@ -468,13 +468,13 @@ function discoverIpNeighbors($host) {
 			$neighHash     = md5(serialize($neighArray));												// This should allow us to pair neighbors together
 
 			if (db_execute_prepared('REPLACE  INTO `plugin_neighbor_ipv4`
-				    (`type`,`vrf`,`host_id`, `hostname`, `snmp_id`,
+				    (`vrf`,`host_id`, `hostname`, `snmp_id`,
 					`interface_name`, `interface_alias`, `interface_ip`, `interface_netmask`,`interface_hwaddr`,
 					`neighbor_host_id`, `neighbor_hostname`, `neighbor_snmp_id`,
 					`neighbor_interface_name`, `neighbor_interface_alias`, `neighbor_interface_ip`, `neighbor_interface_netmask`, `neighbor_interface_hwaddr`,
-					`neighbor_hash`, `ipv4_neighbor_hash`, `record_hash`, `last_seen`)
-				    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())',
-				array_merge($hashArray,[$intNeighHash, $neighHash, $recordHash])
+					`neighbor_hash`, `record_hash`, `last_seen`)
+				    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())',
+				array_merge(array_slice($hashArray, 1),[$neighHash, $recordHash])
 			)) {
 				$neighCount++;
 			}
