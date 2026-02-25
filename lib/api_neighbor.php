@@ -1486,7 +1486,7 @@ function neighbor_rule_to_json($rule_id) {
  * 
  * @return array Nested array of neighbor objects
  */
-function get_neighbor_objects_by_rule($rule_id, $host_filter = '', $edge_filter = '') {
+function get_neighbor_objects_by_rule($rule_id, $host_filter = '', $edge_filter = '', $map_mode = 'topology') {
 	$rule = db_fetch_row_prepared('SELECT * FROM plugin_neighbor_rules WHERE id = ?', [$rule_id]);
 
 	if (!$rule) {
@@ -1501,7 +1501,12 @@ function get_neighbor_objects_by_rule($rule_id, $host_filter = '', $edge_filter 
 		return db_fetch_hash($results, ['hostname', 'neighbor_hostname', 'interface_name']);
 	}
 
-	$protocols = get_protocols_for_neighbor_rule($rule);
+	$protocols = [];
+	if ($map_mode === 'routes') {
+		$protocols = ['route'];
+	} else {
+		$protocols = get_protocols_for_neighbor_rule($rule);
+	}
 	$where     = [];
 	$params    = [];
 
@@ -1589,12 +1594,14 @@ function get_protocols_for_neighbor_rule($rule) {
 				$protocols[] = 'bgp';
 				$protocols[] = 'ospf';
 				$protocols[] = 'isis';
+				$protocols[] = 'route';
 				break;
 			case 'bgp':
 			case 'ospf':
 			case 'isis':
 			case 'cdp':
 			case 'lldp':
+			case 'route':
 				$protocols[] = $option;
 				break;
 		}
@@ -1785,6 +1792,31 @@ function create_map_edges_from_neighbors($neighbor_objects, $sites, $rule_id, $e
 					}
 
 					$title = sprintf('%s -> %s', $rec3['hostname'], str_replace("\n", ' | ', $toLabel));
+				} elseif ($protocol === 'route') {
+					$routePrefix = isset($meta['route_prefix']) ? (string) $meta['route_prefix'] : '';
+					$routePrefixLen = isset($meta['route_prefix_len']) ? (string) $meta['route_prefix_len'] : '';
+					$routeProto = isset($meta['route_proto']) ? strtoupper((string) $meta['route_proto']) : 'ROUTE';
+					$nextHopIp = isset($meta['next_hop_ip']) ? (string) $meta['next_hop_ip'] : $peerIp;
+
+					$toLabel = (isset($rec3['neighbor_hostname']) && trim((string) $rec3['neighbor_hostname']) !== '')
+						? (string) $rec3['neighbor_hostname']
+						: "NEXT-HOP - " . $nextHopIp;
+
+					$labelParts = [];
+					if ($routePrefix !== '' && $routePrefixLen !== '') {
+						$labelParts[] = 'PREFIX - ' . $routePrefix . '/' . $routePrefixLen;
+					}
+					$labelParts[] = 'NH - ' . $nextHopIp;
+					$labelParts[] = 'PROTO - ' . $routeProto;
+					$toLabel = implode("\n", $labelParts) . "\n" . $toLabel;
+
+					$title = sprintf('%s -> %s (%s/%s via %s)',
+						$rec3['hostname'],
+						isset($rec3['neighbor_hostname']) && trim((string) $rec3['neighbor_hostname']) !== '' ? $rec3['neighbor_hostname'] : $nextHopIp,
+						$routePrefix,
+						$routePrefixLen,
+						$nextHopIp
+					);
 				} else {
 					$toLabel = isset($rec3['neighbor_hostname']) ? $rec3['neighbor_hostname'] : '';
 					$title = sprintf('%s - %s to %s - %s',
@@ -1891,12 +1923,16 @@ function ajax_interface_nodes($rule_id = '', $ajax = true, $format = 'jsonp') {
 	$format      = isset_request_var('format') ? get_request_var('format') : $format;
 	$host_filter = isset_request_var('host_filter') ? get_request_var('host_filter') : '';
 	$edge_filter = isset_request_var('edge_filter') ? get_request_var('edge_filter') : '';
+	$map_mode = isset_request_var('map_mode') ? strtolower((string) get_request_var('map_mode')) : 'topology';
 	$res_x       = isset_request_var('res_x') ? get_request_var('res_x') : 1280;
 	$res_y       = isset_request_var('res_y') ? get_request_var('res_y') : 1080;
 	$user_id     = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : 0;
+	if ($map_mode !== 'routes') {
+		$map_mode = 'topology';
+	}
 
 	// Get neighbor objects and (optionally) filter by selected hosts
-	$neighbor_objects = get_neighbor_objects_by_rule($rule_id, $host_filter, $edge_filter);
+	$neighbor_objects = get_neighbor_objects_by_rule($rule_id, $host_filter, $edge_filter, $map_mode);
 	$trace_after_neighbors = microtime(true);
 
 	// If client supplied selected_hosts (comma-separated ids), filter neighbor_objects to only include

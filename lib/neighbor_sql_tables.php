@@ -240,6 +240,34 @@ function neighbor_setup_table() {
               ) DEFAULT CHARSET=utf8mb4
     ");
 
+	// Table: plugin_neighbor_route_rib (learned route inventory per host)
+	db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor_route_rib` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `host_id` int(11) NOT NULL,
+                `hostname` varchar(64) NOT NULL,
+                `vrf` varchar(64) NOT NULL DEFAULT '',
+                `route_prefix` varchar(45) NOT NULL,
+                `route_prefix_len` tinyint(3) unsigned NOT NULL DEFAULT 0,
+                `next_hop_ip` varchar(45) NOT NULL,
+                `route_proto` varchar(32) NOT NULL DEFAULT '',
+                `route_proto_code` int(10) unsigned NOT NULL DEFAULT 0,
+                `route_metric` int(11) NOT NULL DEFAULT 0,
+                `snmp_if_index` int(11) NOT NULL DEFAULT 0,
+                `neighbor_host_id` int(11) NOT NULL DEFAULT 0,
+                `neighbor_hostname` varchar(64) NOT NULL DEFAULT '',
+                `record_hash` char(32) NOT NULL,
+                `last_seen` datetime NOT NULL,
+               PRIMARY KEY (`id`),
+               UNIQUE KEY `record_hash` (`record_hash`),
+               KEY `host_id` (`host_id`),
+               KEY `route_prefix` (`route_prefix`),
+               KEY `next_hop_ip` (`next_hop_ip`),
+               KEY `route_proto` (`route_proto`),
+               KEY `neighbor_host_id` (`neighbor_host_id`),
+               KEY `last_seen` (`last_seen`)
+              ) DEFAULT CHARSET=utf8mb4
+    ");
+
 	// Table: plugin_neighbor_link (normalized connectivity graph)
 	db_execute("CREATE TABLE IF NOT EXISTS `plugin_neighbor_link` (
                 `id` int(11) NOT NULL AUTO_INCREMENT,

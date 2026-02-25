@@ -105,6 +105,7 @@ function plugin_neighbor_uninstall() {
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_ipv4`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_ipv4_cache`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_routing`');
+	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_route_rib`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_link`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_processes`');
 	db_execute('DROP TABLE IF EXISTS `plugin_neighbor_log`');
@@ -203,6 +204,7 @@ function neighbor_check_upgrade() {
 	$has_vrf_rule_items_table       = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_vrf_rule_items'");
 	$has_vrf_match_rule_items_table = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_vrf_match_rule_items'");
 	$has_host_table                 = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_host'");
+	$has_route_rib_table            = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_route_rib'");
 	$has_neighbor_type              = false;
 	$has_neighbor_options           = false;
 
@@ -211,7 +213,7 @@ function neighbor_check_upgrade() {
 		$has_neighbor_options = db_fetch_cell("SHOW COLUMNS FROM plugin_neighbor_rules LIKE 'neighbor_options'");
 	}
 
-	if (!$has_xdp_table || !$has_rules_table || !$has_user_map_table || !$has_edge_table || !$has_poller_output_table || !$has_poller_delta_table || !$has_processes_table || !$has_log_table || !$has_vrf_rules_table || !$has_vrf_rule_items_table || !$has_vrf_match_rule_items_table || !$has_host_table || !$has_neighbor_type || !$has_neighbor_options) {
+	if (!$has_xdp_table || !$has_rules_table || !$has_user_map_table || !$has_edge_table || !$has_poller_output_table || !$has_poller_delta_table || !$has_processes_table || !$has_log_table || !$has_vrf_rules_table || !$has_vrf_rule_items_table || !$has_vrf_match_rule_items_table || !$has_host_table || !$has_route_rib_table || !$has_neighbor_type || !$has_neighbor_options) {
 		include_once($config['base_path'] . '/plugins/neighbor/lib/neighbor_sql_tables.php');
 		neighbor_setup_table();
 	}

@@ -229,6 +229,11 @@ function renderMapToolbar() {
 		"<label for='neighbor_last_seen'><b>Last Seen:</b></label>",
 		"<input id='neighbor_last_seen' type='range' min='1' max='14' value='3' style='width:110px;'>",
 		"<span id='neighbor_last_seen_value'>3 days</span>",
+		"<label for='neighbor_map_mode'><b>Mode:</b></label>",
+		"<select id='neighbor_map_mode' style='min-width:180px;padding:4px;'>" +
+			"<option value='topology'>Device Topology</option>" +
+			"<option value='routes'>Learned Routes</option>" +
+		"</select>",
 		"<button type='button' class='neighbor-btn-primary' id='neighbor_btn_save'>Save</button>",
 		"<button type='button' id='neighbor_btn_reset'>Reset</button>",
 		"<button type='button' id='neighbor_btn_seed'>Seed</button>",
@@ -241,6 +246,8 @@ function renderMapToolbar() {
 	const hostSelect = document.getElementById('neighbor_host_select');
 	const lastSeen = document.getElementById('neighbor_last_seen');
 	const lastSeenValue = document.getElementById('neighbor_last_seen_value');
+	const mapModeSelect = document.getElementById('neighbor_map_mode');
+	mapModeSelect.value = (mapOptions.mapMode === 'routes') ? 'routes' : 'topology';
 
 	ruleDropdown(user_id, rule_id);
 	populateHostSelector(hostSelect);
@@ -259,6 +266,12 @@ function renderMapToolbar() {
 		const value = Number(this.value);
 		lastSeenValue.textContent = value + ' days';
 		updateLastSeen(value);
+	});
+
+	mapModeSelect.addEventListener('change', function() {
+		mapOptions.mapMode = (this.value === 'routes') ? 'routes' : 'topology';
+		mapOptions.ajax = true;
+		drawMap();
 	});
 
 	document.getElementById('neighbor_btn_save').addEventListener('click', function() {

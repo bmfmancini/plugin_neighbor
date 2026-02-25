@@ -220,6 +220,7 @@ function purgeStaleNeighborData() {
 	db_execute_prepared('DELETE FROM plugin_neighbor_ipv4_cache WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
 	db_execute_prepared('DELETE FROM plugin_neighbor_routing WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
 	db_execute_prepared('DELETE FROM plugin_neighbor_link WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
+	db_execute_prepared('DELETE FROM plugin_neighbor_route_rib WHERE last_seen < DATE_SUB(NOW(), INTERVAL ? SECOND)', [$deadTimer]);
 }
 
 // neighbor_host_discovery_enabled() function is now in lib/neighbor_sql_tables.php
@@ -277,6 +278,12 @@ function discoverHost($hostId) {
 		if (read_config_option('neighbor_global_discover_isis') && neighbor_host_discovery_enabled($hostRec[0], 'neighbor_discover_isis')) {
 			$isisNeighbors = discoverIsisNeighbors($hostRec[0]);
 			debug(sprintf('Found   %7d - IS-IS Neighbor(s)', $isisNeighbors));
+		}
+
+		// Route table dependencies for route-centric map mode
+		if (read_config_option('neighbor_global_discover_ip') && neighbor_host_discovery_enabled($hostRec[0], 'neighbor_discover_ip')) {
+			$routeRows = discoverRouteTable($hostRec[0]);
+			debug(sprintf('Found   %7d - Route Next-Hop Entry(s)', $routeRows));
 		}
 
 		// $statsJson = json_encode($stats);
@@ -500,6 +507,170 @@ function parseIsisNeighbors($table, $oidTable) {
 	}
 
 	return $rows;
+}
+
+function routeProtoName($code) {
+	$map = [
+		1 => 'other',
+		2 => 'local',
+		3 => 'netmgmt',
+		4 => 'icmp',
+		5 => 'egp',
+		6 => 'ggp',
+		7 => 'hello',
+		8 => 'rip',
+		9 => 'isis',
+		10 => 'esis',
+		11 => 'igrp',
+		12 => 'bbn-spf-igp',
+		13 => 'ospf',
+		14 => 'bgp',
+	];
+
+	return isset($map[$code]) ? $map[$code] : (string) $code;
+}
+
+function maskToPrefixLen($mask) {
+	$long = ip2long($mask);
+	if ($long === false) {
+		return 0;
+	}
+
+	$bin = sprintf('%032b', $long & 0xffffffff);
+
+	return substr_count($bin, '1');
+}
+
+function resolveHostFromIp($ip) {
+	if ($ip === '') {
+		return ['id' => 0, 'hostname' => ''];
+	}
+
+	$resolved = db_fetch_row_prepared('SELECT id, description, hostname FROM host WHERE hostname = ? OR description = ? LIMIT 1', [$ip, $ip]);
+
+	if ((!is_array($resolved) || !isset($resolved['id'])) && $ip !== '') {
+		$resolved = db_fetch_row_prepared('SELECT h.id, h.description, h.hostname
+			FROM plugin_neighbor_ipv4_cache c
+			INNER JOIN host h ON h.id = c.host_id
+			WHERE c.ip_address = ?
+			LIMIT 1', [$ip]);
+	}
+
+	if (is_array($resolved) && isset($resolved['id'])) {
+		$desc = isset($resolved['description']) ? (string) $resolved['description'] : '';
+		$name = isset($resolved['hostname']) ? (string) $resolved['hostname'] : '';
+		return [
+			'id' => (int) $resolved['id'],
+			'hostname' => trim($desc . ($name !== '' ? ' (' . $name . ')' : '')),
+		];
+	}
+
+	return ['id' => 0, 'hostname' => ''];
+}
+
+/**
+ * Discover route table next-hop dependencies for a host.
+ *
+ * @param array $host Host record from Cacti host table.
+ * @return int Number of route rows persisted.
+ */
+function discoverRouteTable($host) {
+	$oidTable = get_neighbor_oid_table();
+	$hostId = (int) $host['id'];
+	$hostname = isset($host['description']) ? (string) $host['description'] : '';
+
+	if (!isset($oidTable['routeMibWalk']) || !is_array($oidTable['routeMibWalk'])) {
+		return 0;
+	}
+
+	$routeTable = neighbor_snmp_walk_and_flatten($host, $oidTable['routeMibWalk']);
+	if (!is_array($routeTable) || !cacti_sizeof($routeTable)) {
+		return 0;
+	}
+
+	$rows = [];
+	foreach ($routeTable as $oid => $val) {
+		if (preg_match('/' . preg_quote($oidTable['ipRouteDest'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['route_prefix'] = (string) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['ipRouteMask'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['route_mask'] = (string) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['ipRouteNextHop'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['next_hop_ip'] = (string) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['ipRouteProto'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['route_proto_code'] = (int) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['ipRouteMetric1'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['route_metric'] = (int) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['ipRouteIfIndex'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['snmp_if_index'] = (int) $val;
+		} elseif (preg_match('/' . preg_quote($oidTable['ipRouteType'], '/') . '\.(\d+\.\d+\.\d+\.\d+)$/', $oid, $m)) {
+			$idx = $m[1];
+			$rows[$idx]['route_type'] = (int) $val;
+		}
+	}
+
+	$count = 0;
+	foreach ($rows as $idx => $row) {
+		$prefix = isset($row['route_prefix']) && $row['route_prefix'] !== '' ? $row['route_prefix'] : $idx;
+		$mask = isset($row['route_mask']) ? $row['route_mask'] : '';
+		$prefixLen = maskToPrefixLen($mask);
+		$nextHop = isset($row['next_hop_ip']) ? $row['next_hop_ip'] : '';
+		$protoCode = isset($row['route_proto_code']) ? (int) $row['route_proto_code'] : 0;
+		$routeType = isset($row['route_type']) ? (int) $row['route_type'] : 0;
+		$routeMetric = isset($row['route_metric']) ? (int) $row['route_metric'] : 0;
+		$ifIndex = isset($row['snmp_if_index']) ? (int) $row['snmp_if_index'] : 0;
+		$routeProto = routeProtoName($protoCode);
+
+		// Skip directly connected/local and invalid next-hops for dependency mapping.
+		if ($nextHop === '' || $nextHop === '0.0.0.0' || $protoCode === 2 || $routeType === 3) {
+			continue;
+		}
+
+		$resolved = resolveHostFromIp($nextHop);
+		$neighborHostId = isset($resolved['id']) ? (int) $resolved['id'] : 0;
+		$neighborHostname = isset($resolved['hostname']) ? (string) $resolved['hostname'] : '';
+		$prefixCidr = $prefix . '/' . $prefixLen;
+		$recordHash = md5(serialize(['route', $hostId, $prefixCidr, $nextHop, $routeProto, $ifIndex]));
+		$neighborHash = md5(serialize(['route', $hostId, $neighborHostId, $nextHop, $prefixCidr]));
+		$metadata = json_encode([
+			'route_prefix' => $prefix,
+			'route_prefix_len' => $prefixLen,
+			'next_hop_ip' => $nextHop,
+			'route_proto' => $routeProto,
+			'route_proto_code' => $protoCode,
+			'route_metric' => $routeMetric,
+			'snmp_if_index' => $ifIndex,
+		]);
+
+		if (db_execute_prepared('REPLACE INTO plugin_neighbor_route_rib
+			(host_id, hostname, vrf, route_prefix, route_prefix_len, next_hop_ip, route_proto, route_proto_code, route_metric, snmp_if_index, neighbor_host_id, neighbor_hostname, record_hash, last_seen)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+			[$hostId, $hostname, '', $prefix, $prefixLen, $nextHop, $routeProto, $protoCode, $routeMetric, $ifIndex, $neighborHostId, $neighborHostname, $recordHash]
+		)) {
+			upsert_normalized_link([
+				'link_kind' => 'logical',
+				'protocol' => 'route',
+				'host_id' => $hostId,
+				'hostname' => $hostname,
+				'snmp_id' => $ifIndex,
+				'interface_name' => $prefixCidr,
+				'neighbor_host_id' => $neighborHostId,
+				'neighbor_hostname' => $neighborHostname,
+				'neighbor_interface_ip' => $nextHop,
+				'neighbor_hash' => $neighborHash,
+				'record_hash' => $recordHash,
+				'metadata_json' => $metadata ? $metadata : '',
+			]);
+			$count++;
+		}
+	}
+
+	return $count;
 }
 
 /**

@@ -145,7 +145,8 @@ function drawMap() {
 			action: 'ajax_interface_map',
 			rule_id: rule_id,
 			__csrf_magic: csrfMagicToken,
-			selected_hosts: (mapOptions.selectedHosts && mapOptions.selectedHosts.length) ? mapOptions.selectedHosts.join(',') : ''
+			selected_hosts: (mapOptions.selectedHosts && mapOptions.selectedHosts.length) ? mapOptions.selectedHosts.join(',') : '',
+			map_mode: (mapOptions.mapMode === 'routes') ? 'routes' : 'topology'
 		};
 		if (mapOptions.ajax === true) {
 				neighborMapFetchTopology(

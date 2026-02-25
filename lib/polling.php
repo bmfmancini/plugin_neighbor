@@ -249,6 +249,16 @@ function get_neighbor_oid_table() {
 		'isisAdjState'       => '1.3.6.1.2.1.138.1.6.1.1.2',
 		'isisAdjNeighSysId'  => '1.3.6.1.2.1.138.1.6.1.1.3',
 		'isisAdjNeighIpAddr' => '1.3.6.1.2.1.138.1.6.3.1.3',
+
+		// RFC1213-MIB route table (v1 route map support)
+		'routeMibWalk'       => ['1.3.6.1.2.1.4.21.1'],
+		'ipRouteDest'        => '1.3.6.1.2.1.4.21.1.1',
+		'ipRouteIfIndex'     => '1.3.6.1.2.1.4.21.1.2',
+		'ipRouteMetric1'     => '1.3.6.1.2.1.4.21.1.3',
+		'ipRouteNextHop'     => '1.3.6.1.2.1.4.21.1.7',
+		'ipRouteType'        => '1.3.6.1.2.1.4.21.1.8',
+		'ipRouteProto'       => '1.3.6.1.2.1.4.21.1.9',
+		'ipRouteMask'        => '1.3.6.1.2.1.4.21.1.11',
 	];
 }
 

@@ -10,7 +10,8 @@ var mapOptions = (typeof mapOptions !== "undefined" && mapOptions) ? mapOptions 
 	ajax: true,
 	// Disable auto-refresh by default while debugging backend stability.
 	refreshInterval: 0,
-	selectedHosts: []
+	selectedHosts: [],
+	mapMode: "topology"
 };
 
 var nodesData = (typeof nodesData !== "undefined" && Array.isArray(nodesData)) ? nodesData : [];
