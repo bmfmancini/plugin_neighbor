@@ -47,14 +47,14 @@ function processEdgeData(edges) {
 			edge.target = Number(edge.target);
 		}
 
-		// Determine edge type based on protocol (preserve existing if present)
-		if (edge.protocol === 'cdp' || edge.protocol === 'lldp') {
-			edge.type = 'physical';
-		} else if (['bgp', 'ospf', 'isis', 'eigrp'].includes(edge.protocol)) {
-			edge.type = 'logical';
-		} else {
-			edge.type = edge.type ?? 'physical'; // default
-		}
+		// Normalize protocol/type and enforce render policy:
+		// Physical discovery links stay solid (cdp/lldp/xdp or server-marked physical),
+		// everything else is rendered as logical/dashed.
+		const protocol = (edge.protocol ?? '').toString().toLowerCase();
+		edge.protocol = protocol;
+		const incomingType = (edge.type ?? '').toString().toLowerCase();
+		const isPhysicalProtocol = protocol === 'cdp' || protocol === 'lldp' || protocol === 'xdp';
+		edge.type = (incomingType === 'physical' || isPhysicalProtocol) ? 'physical' : 'logical';
 
 		// Process traffic data for colors — `edge.poller` may be a JSON string from server
 		let pollerData = edge.poller;

@@ -245,7 +245,47 @@ function ajax_neighbors_fetch($table = '', $format = 'jsonp',$ajax = true) {
 	}
 	// ================= input validation =================
 
-	$results = db_fetch_assoc('SELECT * FROM plugin_neighbor_' . $table);
+	$results = [];
+	$dbTable = 'plugin_neighbor_' . $table;
+	$hasTable = db_fetch_cell_prepared('SHOW TABLES LIKE ?', [$dbTable]);
+
+	if ($hasTable) {
+		$results = db_fetch_assoc('SELECT * FROM ' . $dbTable);
+	} elseif ($table === 'ifalias') {
+		// Legacy ifalias table may not exist. Fall back to physical neighbor data.
+		$hasLinkTable = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_link'");
+		$hasXdpTable  = db_fetch_cell("SHOW TABLES LIKE 'plugin_neighbor_xdp'");
+
+		if ($hasLinkTable) {
+			$results = db_fetch_assoc("SELECT
+					hostname,
+					interface_name,
+					interface_alias,
+					interface_speed,
+					neighbor_hostname,
+					neighbor_interface_name,
+					neighbor_interface_alias,
+					'' AS neighbor_platform,
+					last_seen
+				FROM plugin_neighbor_link
+				WHERE protocol IN ('cdp', 'lldp')
+				ORDER BY last_seen DESC");
+		} elseif ($hasXdpTable) {
+			$results = db_fetch_assoc("SELECT
+					hostname,
+					interface_name,
+					interface_alias,
+					interface_speed,
+					neighbor_hostname,
+					neighbor_interface_name,
+					neighbor_interface_alias,
+					neighbor_platform,
+					last_seen
+				FROM plugin_neighbor_xdp
+				ORDER BY last_seen DESC");
+		}
+	}
+
 	$json    = json_encode($results);
 	$jsonp   = sprintf('%s({"Response":[%s]})', $query_callback,json_encode($results,JSON_PRETTY_PRINT));
 

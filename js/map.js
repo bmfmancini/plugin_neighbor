@@ -210,13 +210,14 @@ function drawMap() {
 					}
 				);
 				} else {
-				// Use cached data for filtering
-				let nodes = Array.isArray(mapOptions.ajaxNodes) ? mapOptions.ajaxNodes.slice() : [];
-				let edges = Array.isArray(mapOptions.ajaxEdges) ? mapOptions.ajaxEdges.slice() : [];
+			// Use cached data for filtering
+			let nodes = Array.isArray(mapOptions.ajaxNodes) ? mapOptions.ajaxNodes.slice() : [];
+			let edges = Array.isArray(mapOptions.ajaxEdges) ? mapOptions.ajaxEdges.slice() : [];
+			processEdgeData(edges);
 
-				const filtered = filterEdges(nodes, edges);
-				nodes = filtered.nodes;
-				edges = filtered.edges;
+			const filtered = filterEdges(nodes, edges);
+			nodes = filtered.nodes;
+			edges = filtered.edges;
 
 				const physicalEdges = edges.filter(e => e.type === 'physical');
 				const logicalEdges = edges.filter(e => e.type === 'logical');
